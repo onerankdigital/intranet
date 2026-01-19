@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { authApi, apiClient, clientApi, roleApi, userClientApi } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
+import { isAdmin } from "@/lib/utils"
 
 // Helper function to render nested values as tables
 const renderValue = (value: any, depth: number = 0): React.ReactNode => {
@@ -241,7 +242,7 @@ export default function AuthPage() {
       </div>
 
       <div className="flex gap-2 border-b">
-        {user?.is_admin === true && (
+        {isAdmin(user) && (
           <Button
             variant={activeTab === "create-user" ? "default" : "ghost"}
             onClick={() => setActiveTab("create-user")}

@@ -6,6 +6,7 @@ import { Users, FileText, Webhook, User, Shield, Key, Network, Package, Trending
 import { Badge } from "@/components/ui/badge";
 import { usePermissions } from "@/lib/use-permissions";
 import { useAuth } from "@/lib/auth-context";
+import { isAdmin } from "@/lib/utils";
 
 export default function Home() {
   const { canRead, loading: permissionsLoading } = usePermissions();
@@ -138,7 +139,7 @@ export default function Home() {
     if (!stat.module) return true;
     
     // Admin users see everything
-    if (user?.is_admin === true) return true;
+    if (isAdmin(user)) return true;
     
     // Wait for permissions to load
     if (permissionsLoading) return false;

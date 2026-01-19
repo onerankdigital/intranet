@@ -114,7 +114,9 @@ export function usePermissions(): UserPermissionsHook {
       }
 
       // Admin has all permissions
-      if (user.is_admin === true) {
+      // Handle both boolean and string values (API might return string "true")
+      const isAdmin = user.is_admin === true || user.is_admin === "true" || String(user.is_admin).toLowerCase() === "true"
+      if (isAdmin) {
         setPermissions([])
         setLoading(false)
         return
@@ -146,7 +148,9 @@ export function usePermissions(): UserPermissionsHook {
 
   const hasPermission = useCallback((method: string, path: string): boolean => {
     if (!user) return false
-    if (user.is_admin === true) return true // Admin has all permissions
+    // Handle both boolean and string values (API might return string "true")
+    const isAdmin = user.is_admin === true || user.is_admin === "true" || String(user.is_admin).toLowerCase() === "true"
+    if (isAdmin) return true // Admin has all permissions
 
     if (permissions.length === 0) {
       // No permissions = no access (unless admin)
@@ -204,7 +208,9 @@ export function usePermissions(): UserPermissionsHook {
       console.log(`canRead(${module}): No user, returning false`)
       return false
     }
-    if (user.is_admin === true) {
+    // Handle both boolean and string values (API might return string "true")
+    const isAdmin = user.is_admin === true || user.is_admin === "true" || String(user.is_admin).toLowerCase() === "true"
+    if (isAdmin) {
       console.log(`canRead(${module}): User is admin, returning true`)
       return true // Admin has all permissions
     }

@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import { cn, isAdmin } from "@/lib/utils"
 import { useAuth } from "@/lib/auth-context"
 import { usePermissions } from "@/lib/use-permissions"
 import {
@@ -131,7 +131,7 @@ export function Sidebar({ className }: SidebarProps) {
               }
               
               // Admin users can see everything
-              if (user?.is_admin === true) {
+              if (isAdmin(user)) {
                 const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
                 const Icon = item.icon
                 return (

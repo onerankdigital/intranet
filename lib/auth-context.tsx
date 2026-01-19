@@ -7,7 +7,7 @@ import { authApi, apiClient } from "@/lib/api"
 interface User {
   id: string
   email: string
-  is_admin: boolean
+  is_admin: boolean | string  // Can be boolean or string "true"/"false" from API
   status: string
 }
 
