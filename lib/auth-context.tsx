@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.me()
       
       if (response.data) {
-        setUser(response.data)
+        setUser(response.data as User)
       } else {
         // Token invalid, clear it
         apiClient.setToken(null)
@@ -155,23 +155,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      interface TokenResponse {
+        access_token: string
+        refresh_token: string
+        token_type?: string
+      }
+
       const response = await authApi.login({ email, password })
       
       if (response.error) {
         return { success: false, error: response.error }
       }
 
-      const { access_token, refresh_token } = response.data || {}
-      if (access_token) {
-        apiClient.setToken(access_token)
-        if (refresh_token && typeof window !== "undefined") {
-          localStorage.setItem("refresh_token", refresh_token)
+      const data = response.data as TokenResponse | undefined
+      if (data?.access_token) {
+        apiClient.setToken(data.access_token)
+        if (data.refresh_token && typeof window !== "undefined") {
+          localStorage.setItem("refresh_token", data.refresh_token)
         }
         
         // Fetch user profile
         const userResponse = await authApi.me()
         if (userResponse.data) {
-          setUser(userResponse.data)
+          setUser(userResponse.data as User)
           return { success: true }
         }
       }

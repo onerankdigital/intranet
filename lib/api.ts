@@ -276,12 +276,6 @@ class ApiClient {
       }
     }
   }
-
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, {
-      method: "DELETE",
-    })
-  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL)
@@ -574,7 +568,7 @@ export const apiKeyApi = {
 
 // Transaction API
 export const transactionApi = {
-  create: (data: { client_id: string; transaction_id: string; amount: number; notes?: string }) =>
+  create: (data: { client_id: string; transaction_id: string; amount: number; payment_method?: string; created_by_user_id?: string; notes?: string }) =>
     apiClient.post("/api/transactions", data),
   
   list: (params?: { client_id?: string; status?: string; skip?: number; limit?: number }) => {

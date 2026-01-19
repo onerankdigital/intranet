@@ -13,6 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiKeyApi, clientApi } from "@/lib/api"
 import { Key, Plus, RefreshCw, CheckCircle2, XCircle, Search, Copy, Eye, EyeOff, AlertTriangle, Trash2, Power, PowerOff } from "lucide-react"
 
+interface APIKeyGenerateResponse {
+  api_key: string
+  key_prefix: string
+  client_id: string
+  expires_at?: string | null
+}
+
 export default function APIKeysPage() {
   const [apiKeys, setApiKeys] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
@@ -81,7 +88,8 @@ export default function APIKeysPage() {
       setMessage({ type: "error", text: response.error })
     } else {
       setMessage({ type: "success", text: "API key generated successfully! Save it now - it won't be shown again." })
-      setNewApiKey(response.data?.api_key || null)
+      const data = response.data as APIKeyGenerateResponse | undefined
+      setNewApiKey(data?.api_key || null)
       setShowApiKey(true)
       setCreateData({ client_id: "", scopes: ["leads:create"], expires_at: "" })
       fetchAPIKeys()
@@ -454,7 +462,7 @@ export default function APIKeysPage() {
                         </code>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={key.status === "active" ? "success" : "secondary"} >
+                        <Badge variant={key.status === "active" ? "default" : "secondary"} >
                           {key.status}
                         </Badge>
                       </TableCell>

@@ -37,6 +37,8 @@ export default function EditClientPage() {
     gst_no: "",
     package_amount: "",
     description: "",
+    city: "",
+    state: "",
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -49,9 +51,31 @@ export default function EditClientPage() {
 
   const fetchClient = async () => {
     setFetching(true)
+    interface ClientResponse {
+      client_id: string
+      name: string
+      status: string
+      is_premium: boolean
+      company_name?: string
+      contact_person?: string
+      designation?: string
+      address?: string
+      phone?: string
+      email?: string
+      domain_name?: string
+      gst_no?: string
+      package_amount?: number | string
+      description?: string
+      logo?: string
+      city?: string
+      state?: string
+      customer_no?: string
+      order_date?: string
+      order_data?: any
+    }
     const response = await clientApi.get(clientId)
     if (response.data) {
-      const client = response.data
+      const client = response.data as ClientResponse
       setFormData({
         name: client.name || "",
         status: client.status || "active",
@@ -66,6 +90,8 @@ export default function EditClientPage() {
         gst_no: client.gst_no || "",
         package_amount: client.package_amount ? client.package_amount.toString() : "",
         description: client.description || "",
+        city: client.city || "",
+        state: client.state || "",
       })
       if (client.logo) {
         // Convert logo path to full URL if it's a relative path

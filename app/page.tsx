@@ -138,8 +138,7 @@ export default function Home() {
     if (!stat.module) return true;
     
     // Admin users see everything
-    const isAdmin = user?.is_admin === true || user?.is_admin === "true" || user?.is_admin === "True";
-    if (isAdmin) return true;
+    if (user?.is_admin === true) return true;
     
     // Wait for permissions to load
     if (permissionsLoading) return false;

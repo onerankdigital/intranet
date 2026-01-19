@@ -114,9 +114,7 @@ export function usePermissions(): UserPermissionsHook {
       }
 
       // Admin has all permissions
-      // Handle both boolean and string values for is_admin
-      const isAdmin = user.is_admin === true || user.is_admin === "true" || user.is_admin === "True"
-      if (isAdmin) {
+      if (user.is_admin === true) {
         setPermissions([])
         setLoading(false)
         return
@@ -128,9 +126,9 @@ export function usePermissions(): UserPermissionsHook {
         console.log("Fetching user permissions...")
         const response = await authApi.getMyPermissions()
         console.log("Permissions API response:", response)
-        if (response.data && response.data.permissions) {
-          console.log("Setting permissions:", response.data.permissions)
-          setPermissions(response.data.permissions)
+        if (response.data && (response.data as any).permissions) {
+          console.log("Setting permissions:", (response.data as any).permissions)
+          setPermissions((response.data as any).permissions)
         } else {
           console.warn("No permissions in response, setting empty array")
           setPermissions([])
@@ -148,9 +146,7 @@ export function usePermissions(): UserPermissionsHook {
 
   const hasPermission = useCallback((method: string, path: string): boolean => {
     if (!user) return false
-    // Handle both boolean and string values for is_admin
-    const isAdmin = user.is_admin === true || user.is_admin === "true" || user.is_admin === "True"
-    if (isAdmin) return true // Admin has all permissions
+    if (user.is_admin === true) return true // Admin has all permissions
 
     if (permissions.length === 0) {
       // No permissions = no access (unless admin)
@@ -208,9 +204,7 @@ export function usePermissions(): UserPermissionsHook {
       console.log(`canRead(${module}): No user, returning false`)
       return false
     }
-    // Handle both boolean and string values for is_admin
-    const isAdmin = user.is_admin === true || user.is_admin === "true" || user.is_admin === "True"
-    if (isAdmin) {
+    if (user.is_admin === true) {
       console.log(`canRead(${module}): User is admin, returning true`)
       return true // Admin has all permissions
     }

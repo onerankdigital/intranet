@@ -371,7 +371,7 @@ export default function TransactionsPage() {
                   variant="outline"
                   onClick={() => {
                     setShowCreate(false)
-                    setCreateData({ client_id: "", transaction_id: "", amount: "", notes: "" })
+                    setCreateData({ client_id: "", transaction_id: "", amount: "", payment_method: "", notes: "" })
                   }}
                 >
                   Cancel

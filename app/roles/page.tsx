@@ -67,15 +67,25 @@ export default function RolesPage() {
   const handleViewRole = async (roleId: string) => {
     setLoading(true)
     try {
+      interface RoleResponse {
+        id: string
+        name: string
+        level: string
+        description?: string
+        status: string
+        created_at: string
+        updated_at: string
+      }
       const response = await roleApi.get(roleId)
       if (response.data) {
-        setSelectedRole(response.data)
+        const data = response.data as RoleResponse
+        setSelectedRole(data)
         // Show role details in message
         const roleDetails = [
-          `Role: ${response.data.name}`,
-          `Level: ${response.data.level}`,
-          `Status: ${response.data.status}`,
-          response.data.description ? `Description: ${response.data.description}` : "No description"
+          `Role: ${data.name}`,
+          `Level: ${data.level}`,
+          `Status: ${data.status}`,
+          data.description ? `Description: ${data.description}` : "No description"
         ].join("\n")
         setMessage({ 
           type: "success", 

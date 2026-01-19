@@ -131,9 +131,7 @@ export function Sidebar({ className }: SidebarProps) {
               }
               
               // Admin users can see everything
-              // Handle both boolean and string values for is_admin
-              const isAdmin = user?.is_admin === true || user?.is_admin === "true" || user?.is_admin === "True"
-              if (isAdmin) {
+              if (user?.is_admin === true) {
                 const isActive = pathname === item.href || pathname?.startsWith(item.href + "/")
                 const Icon = item.icon
                 return (
@@ -208,7 +206,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <User className="h-4 w-4 text-muted-foreground" />
                   <p className="font-medium text-sm">{user.email}</p>
                 </div>
-                {(user.is_admin === true || user.is_admin === "true" || user.is_admin === "True") && (
+                {user.is_admin === true && (
                   <Badge variant="default" className="text-xs mt-1">
                     Admin
                   </Badge>

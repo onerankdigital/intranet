@@ -121,7 +121,14 @@ export default function AuthPage() {
       return
     }
 
-    const userId = userResponse.data?.id
+    interface UserCreateResponse {
+      id: string
+      email: string
+      is_admin: boolean
+      status: string
+    }
+    const data = userResponse.data as UserCreateResponse | undefined
+    const userId = data?.id
 
     // If client and role are selected, assign user to client
     if (createUserData.assignClient && createUserData.client_id && createUserData.role_id && userId) {
@@ -202,13 +209,22 @@ export default function AuthPage() {
       return
     }
 
+    interface TokenResponse {
+      access_token: string
+      refresh_token: string
+      token_type?: string
+    }
+
     const response = await authApi.refresh({ refresh_token: refreshToken })
     if (response.error) {
       setMessage({ type: "error", text: response.error })
     } else {
-      const { access_token } = response.data || {}
-      if (access_token) {
-        apiClient.setToken(access_token)
+      const data = response.data as TokenResponse | undefined
+      if (data?.access_token) {
+        apiClient.setToken(data.access_token)
+        if (data.refresh_token && typeof window !== "undefined") {
+          localStorage.setItem("refresh_token", data.refresh_token)
+        }
         setMessage({ type: "success", text: "Token refreshed!" })
       }
     }
@@ -225,7 +241,7 @@ export default function AuthPage() {
       </div>
 
       <div className="flex gap-2 border-b">
-        {(user?.is_admin === true || user?.is_admin === "true" || user?.is_admin === "True") && (
+        {user?.is_admin === true && (
           <Button
             variant={activeTab === "create-user" ? "default" : "ghost"}
             onClick={() => setActiveTab("create-user")}

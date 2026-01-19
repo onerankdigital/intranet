@@ -40,7 +40,7 @@ export default function HierarchyPage() {
     try {
       const response = await clientApi.list()
       if (response.data) {
-        setClients(response.data)
+        setClients(Array.isArray(response.data) ? response.data : [])
       }
     } catch (error) {
       setMessage({ type: "error", text: "Failed to load clients" })
@@ -51,7 +51,7 @@ export default function HierarchyPage() {
     try {
       const response = await userClientApi.list({ client_id: selectedClient })
       if (response.data) {
-        setUserClients(response.data)
+        setUserClients(Array.isArray(response.data) ? response.data : [])
       }
     } catch (error) {
       setMessage({ type: "error", text: "Failed to load user-clients" })
@@ -75,7 +75,7 @@ export default function HierarchyPage() {
     try {
       const response = await hierarchyApi.getDescendants(selectedUserClient, false)
       if (response.data) {
-        setDescendants(response.data)
+        setDescendants(Array.isArray(response.data) ? response.data : [])
       }
     } catch (error) {
       setMessage({ type: "error", text: "Failed to load descendants" })
@@ -93,7 +93,12 @@ export default function HierarchyPage() {
     try {
       const response = await hierarchyApi.rebuild(selectedClient)
       if (response.data) {
-        setMessage({ type: "success", text: response.data.message || "Hierarchy rebuilt successfully" })
+        interface RebuildResponse {
+          message?: string
+          [key: string]: any
+        }
+        const data = response.data as RebuildResponse
+        setMessage({ type: "success", text: data.message || "Hierarchy rebuilt successfully" })
         if (selectedUserClient) {
           loadHierarchyTree()
           loadDescendants()
@@ -106,9 +111,9 @@ export default function HierarchyPage() {
     }
   }
 
-  const renderTree = (node: any, depth: number = 0): JSX.Element => {
-    const nodeId = node.user_client_id || node.id || 'unknown'
-    const displayId = nodeId && nodeId.length > 8 ? nodeId.substring(0, 8) + '...' : nodeId
+  const renderTree = (node: any, depth: number = 0): React.ReactElement => {
+    const nodeId = String(node.user_client_id || node.id || 'unknown')
+    const displayId = nodeId.length > 8 ? nodeId.substring(0, 8) + '...' : nodeId
     return (
       <div key={nodeId} className="ml-4 border-l-2 border-gray-300 pl-4">
         <div className="flex items-center gap-2 py-1">

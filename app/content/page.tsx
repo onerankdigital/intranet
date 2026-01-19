@@ -50,14 +50,24 @@ export default function ContentPage() {
 
   const loadAboutUs = async () => {
     try {
+      interface AboutUsResponse {
+        id: string
+        title: string
+        subtitle?: string
+        description?: string
+        status: string
+        created_at: string
+        updated_at: string
+      }
       const response = await contentApi.getAboutUs()
       if (response.data) {
-        setAboutUs(response.data)
+        const data = response.data as AboutUsResponse
+        setAboutUs(data)
         setAboutUsForm({
-          title: response.data.title || "",
-          subtitle: response.data.subtitle || "",
-          description: response.data.description || "",
-          status: response.data.status || "active"
+          title: data.title || "",
+          subtitle: data.subtitle || "",
+          description: data.description || "",
+          status: data.status || "active"
         })
       }
     } catch (error: any) {
@@ -72,23 +82,43 @@ export default function ContentPage() {
 
   const loadContactDetails = async () => {
     try {
+      interface ContactDetailsResponse {
+        id: string
+        company_name?: string
+        email?: string[]
+        phone?: string[]
+        address?: string
+        website?: string[]
+        social_media?: {
+          facebook?: string
+          linkedin?: string
+          instagram?: string
+          youtube?: string
+          twitter?: string
+          [key: string]: string | undefined
+        }
+        status: string
+        created_at: string
+        updated_at: string
+      }
       const response = await contentApi.getContactDetails()
       if (response.data) {
-        setContactDetails(response.data)
+        const data = response.data as ContactDetailsResponse
+        setContactDetails(data)
         setContactForm({
-          company_name: response.data.company_name || "",
-          email: response.data.email || [""],
-          phone: response.data.phone || [""],
-          address: response.data.address || "",
-          website: response.data.website || [""],
-          social_media: response.data.social_media || {
-            facebook: "",
-            linkedin: "",
-            instagram: "",
-            youtube: "",
-            twitter: ""
+          company_name: data.company_name || "",
+          email: data.email || [""],
+          phone: data.phone || [""],
+          address: data.address || "",
+          website: data.website || [""],
+          social_media: {
+            facebook: data.social_media?.facebook || "",
+            linkedin: data.social_media?.linkedin || "",
+            instagram: data.social_media?.instagram || "",
+            youtube: data.social_media?.youtube || "",
+            twitter: data.social_media?.twitter || ""
           },
-          status: response.data.status || "active"
+          status: data.status || "active"
         })
       }
     } catch (error: any) {

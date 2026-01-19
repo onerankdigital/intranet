@@ -97,10 +97,15 @@ export default function NewClientPage() {
           return
         }
         
-        const clients = response.data || []
+        interface ClientListItem {
+          client_id: string
+          customer_no?: string
+          name?: string
+        }
+        const clients = (Array.isArray(response.data) ? response.data : []) as ClientListItem[]
         
         // Filter clients with customer_no matching today's pattern
-        const todayClients = clients.filter((client: any) => {
+        const todayClients = clients.filter((client: ClientListItem) => {
           const customerNo = client.customer_no || client.client_id || ""
           return customerNo.startsWith(todayPattern)
         })
@@ -244,8 +249,18 @@ export default function NewClientPage() {
     if (response.error) {
       setMessage({ type: "error", text: response.error })
     } else {
+      interface OrderResponse {
+        client_id: string
+        customer_no: string
+        package_amount: number
+        gst_amount: number
+        total_amount: number
+        services_count: number
+        created_at: string
+      }
       // Update client with is_premium if needed
-      const createdClientId = response.data?.client_id || client_id
+      const data = response.data as OrderResponse | undefined
+      const createdClientId = data?.client_id || client_id
       if (formData.is_premium) {
         await clientApi.update(createdClientId, { is_premium: true })
       }
