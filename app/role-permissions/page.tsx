@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { roleApi, permissionApi, rolePermissionApi } from "@/lib/api"
 
 export default function RolePermissionsPage() {
@@ -100,6 +101,26 @@ export default function RolePermissionsPage() {
   const assignedPermissionIds = new Set(rolePermissions.map((rp) => rp.id || rp.permission_id))
   const availablePermissions = permissions.filter((p) => !assignedPermissionIds.has(p.id))
 
+  // Helper function to check if a permission is cross-client
+  const isCrossClientPermission = (permission: any): boolean => {
+    const path = permission.path || ""
+    const description = (permission.description || "").toLowerCase()
+    
+    // Check if path ends with /all
+    if (path.endsWith('/all')) {
+      return true
+    }
+    
+    // Check if description contains cross-client keywords
+    const crossClientKeywords = [
+      'cross-client', 'cross client', 'all clients', 'all enquiries', 
+      'all transactions', 'all leads', 'global access', 'admin access',
+      'view all', 'access all'
+    ]
+    
+    return crossClientKeywords.some(keyword => description.includes(keyword))
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -171,11 +192,21 @@ export default function RolePermissionsPage() {
                   <TableBody>
                     {rolePermissions.map((rp) => {
                       const perm = rp.permission || rp
+                      const isCrossClient = isCrossClientPermission(perm)
                       return (
                         <TableRow key={perm.id || rp.permission_id}>
                           <TableCell className="font-medium">{perm.method}</TableCell>
                           <TableCell className="font-mono text-sm">{perm.path}</TableCell>
                           <TableCell>{perm.description || "N/A"}</TableCell>
+                          <TableCell>
+                            {isCrossClient ? (
+                              <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+                                Cross-Client
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Standard</Badge>
+                            )}
+                          </TableCell>
                           <TableCell>
                             <Button
                               variant="destructive"
@@ -210,27 +241,40 @@ export default function RolePermissionsPage() {
                       <TableHead>Method</TableHead>
                       <TableHead>Path</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead>Access Type</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {availablePermissions.map((permission) => (
-                      <TableRow key={permission.id}>
-                        <TableCell className="font-medium">{permission.method}</TableCell>
-                        <TableCell className="font-mono text-sm">{permission.path}</TableCell>
-                        <TableCell>{permission.description || "N/A"}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAssign(permission.id)}
-                            disabled={loading}
-                          >
-                            Assign
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {availablePermissions.map((permission) => {
+                      const isCrossClient = isCrossClientPermission(permission)
+                      return (
+                        <TableRow key={permission.id}>
+                          <TableCell className="font-medium">{permission.method}</TableCell>
+                          <TableCell className="font-mono text-sm">{permission.path}</TableCell>
+                          <TableCell>{permission.description || "N/A"}</TableCell>
+                          <TableCell>
+                            {isCrossClient ? (
+                              <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+                                Cross-Client
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Standard</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAssign(permission.id)}
+                              disabled={loading}
+                            >
+                              Assign
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               )}

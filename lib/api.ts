@@ -96,6 +96,18 @@ class ApiClient {
         data = text ? { detail: text } : { detail: `Error: ${response.status} ${response.statusText}` }
       }
 
+      // Handle 401 Unauthorized - token expired
+      if (response.status === 401) {
+        this.setToken(null)
+        if (this.onUnauthorized) {
+          this.onUnauthorized()
+        }
+        return {
+          error: "Token expired. Please login again.",
+          detail: data.detail || data.error || "Unauthorized",
+        }
+      }
+
       if (!response.ok) {
         return {
           error: data.detail || data.error || "An error occurred",
@@ -285,7 +297,7 @@ export const authApi = {
   register: (data: { email: string; password: string; name?: string }) =>
     apiClient.post("/api/auth/register", data),
 
-  createUser: (data: { email: string; password: string; is_admin?: boolean }) =>
+  createUser: (data: { name: string; email: string; password: string; is_admin?: boolean }) =>
     apiClient.post("/api/auth/create-user", data),
 
   login: (data: { email: string; password: string }) =>
@@ -299,6 +311,14 @@ export const authApi = {
   getMyPermissions: () => apiClient.get("/api/auth/me/permissions"),
   
   listUsers: () => apiClient.get("/api/auth/users"),
+
+  deleteUser: (userId: string) => apiClient.delete(`/api/auth/users/${userId}`),
+
+  updateUser: (userId: string, data: { name: string; email: string; status: string }) =>
+    apiClient.put(`/api/auth/users/${userId}`, data),
+
+  changeUserPassword: (userId: string, data: { new_password: string }) =>
+    apiClient.post(`/api/auth/users/${userId}/change-password`, data),
 }
 
 // Client API
@@ -558,6 +578,9 @@ export const apiKeyApi = {
     if (clientId) params.append("client_id", clientId)
     return apiClient.get(`/api/api-keys${params.toString() ? `?${params.toString()}` : ""}`)
   },
+  
+  get: (apiKeyId: string) =>
+    apiClient.get(`/api/api-keys/${apiKeyId}`),
   
   update: (apiKeyId: string, data: { status?: string }) =>
     apiClient.patch(`/api/api-keys/${apiKeyId}`, data),

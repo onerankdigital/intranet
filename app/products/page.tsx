@@ -62,12 +62,146 @@ export default function ProductsPage() {
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([])
   const [attachForm, setAttachForm] = useState({ client_id: "", product_id: "" })
 
+  // For bulk product assignment
+  const [selectedClientForAssignment, setSelectedClientForAssignment] = useState<string>("")
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
+  const [productSearchQuery, setProductSearchQuery] = useState("")
+
   useEffect(() => {
     loadIndustries()
     loadCategories()
     loadProducts()
     loadClients()
   }, [])
+
+  // When client is selected for assignment, load their current products
+  const [currentClientProductIds, setCurrentClientProductIds] = useState<Set<string>>(new Set())
+  
+  useEffect(() => {
+    if (selectedClientForAssignment) {
+      loadClientProductsForAssignment()
+    } else {
+      setSelectedProductIds(new Set())
+      setCurrentClientProductIds(new Set())
+    }
+  }, [selectedClientForAssignment])
+
+  const loadClientProductsForAssignment = async () => {
+    if (!selectedClientForAssignment) return
+    try {
+      const response = await productApi.getClientProducts(selectedClientForAssignment)
+      if (response.data) {
+        const currentProductIds = new Set(
+          (response.data as any[]).map((cp: any) => cp.product_id || cp.product?.id)
+        )
+        setCurrentClientProductIds(currentProductIds)
+        // Pre-select already attached products
+        setSelectedProductIds(currentProductIds)
+      } else {
+        setCurrentClientProductIds(new Set())
+        setSelectedProductIds(new Set())
+      }
+    } catch (error) {
+      console.error("Failed to load client products:", error)
+      setCurrentClientProductIds(new Set())
+      setSelectedProductIds(new Set())
+    }
+  }
+
+  // Filter products based on search query
+  const filteredProducts = products.filter(product => {
+    const searchLower = productSearchQuery.toLowerCase()
+    const name = (product.name || "").toLowerCase()
+    const categoryName = (product.category_name || "")?.toLowerCase()
+    return name.includes(searchLower) || categoryName.includes(searchLower)
+  })
+
+  const handleProductToggle = (productId: string) => {
+    const newSelection = new Set(selectedProductIds)
+    if (newSelection.has(productId)) {
+      newSelection.delete(productId)
+    } else {
+      newSelection.add(productId)
+    }
+    setSelectedProductIds(newSelection)
+  }
+
+  const handleSelectAllProducts = () => {
+    if (selectedProductIds.size === filteredProducts.length) {
+      setSelectedProductIds(new Set())
+    } else {
+      setSelectedProductIds(new Set(filteredProducts.map(p => p.id)))
+    }
+  }
+
+  const handleBulkAttachProducts = async () => {
+    if (!selectedClientForAssignment) {
+      setMessage({ type: "error", text: "Please select a client first" })
+      return
+    }
+
+    if (selectedProductIds.size === 0) {
+      setMessage({ type: "error", text: "Please select at least one product" })
+      return
+    }
+
+    setLoading(true)
+    setMessage(null)
+
+    try {
+      // Attach each selected product to the client
+      const productIdsToAttach = Array.from(selectedProductIds)
+      let successCount = 0
+      let errorCount = 0
+
+      for (const productId of productIdsToAttach) {
+        // Skip if already attached (from currentClientProductIds)
+        if (currentClientProductIds.has(productId)) {
+          continue
+        }
+
+        const data = {
+          client_id: selectedClientForAssignment,
+          product_id: productId,
+          enabled: true,
+        }
+
+        const response = await productApi.attachProduct(data)
+        
+        if (response.error) {
+          errorCount++
+          console.error(`Failed to attach product ${productId}:`, response.error)
+        } else {
+          successCount++
+        }
+      }
+
+      if (errorCount === 0) {
+        setMessage({ 
+          type: "success", 
+          text: `Successfully attached ${successCount} product(s) to client!` 
+        })
+        // Reset form
+        setSelectedClientForAssignment("")
+        setSelectedProductIds(new Set())
+        setProductSearchQuery("")
+        loadClientProducts()
+        if (selectedClient) {
+          loadClientProducts()
+        }
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: `Attached ${successCount} product(s), but ${errorCount} failed. Check console for details.` 
+        })
+        loadClientProducts()
+      }
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.error || "Failed to attach products" })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (selectedClient) {
@@ -989,18 +1123,20 @@ export default function ProductsPage() {
         <TabsContent value="client-products" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Attach Product to Client</CardTitle>
+              <CardTitle>Attach Products to Client</CardTitle>
+              <CardDescription>Select a client and then choose multiple products to attach</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleAttachProduct} className="space-y-4">
-                <div>
-                  <Label htmlFor="attach-client">Client *</Label>
+              <div className="space-y-6">
+                {/* Step 1: Select Client */}
+                <div className="space-y-2">
+                  <Label htmlFor="attach-client">Step 1: Select Client</Label>
                   <Select
-                    value={attachForm.client_id}
-                    onValueChange={(value) => setAttachForm({ ...attachForm, client_id: value })}
+                    value={selectedClientForAssignment}
+                    onValueChange={setSelectedClientForAssignment}
                   >
                     <SelectTrigger id="attach-client">
-                      <SelectValue placeholder="Select client" />
+                      <SelectValue placeholder="-- Select a client --" />
                     </SelectTrigger>
                     <SelectContent>
                       {clients.map((client) => (
@@ -1011,28 +1147,92 @@ export default function ProductsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label htmlFor="attach-product">Product *</Label>
-                  <Select
-                    value={attachForm.product_id}
-                    onValueChange={(value) => setAttachForm({ ...attachForm, product_id: value })}
-                  >
-                    <SelectTrigger id="attach-product">
-                      <SelectValue placeholder="Select product" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={product.id}>
+
+                {/* Step 2: Select Products (only shown if client is selected) */}
+                {selectedClientForAssignment && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Step 2: Select Products (Select multiple)</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSelectAllProducts}
+                      >
+                        {selectedProductIds.size === filteredProducts.length ? "Deselect All" : "Select All"}
+                      </Button>
+                    </div>
+
+                    {/* Search input */}
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="Search products by name or category..."
+                        value={productSearchQuery}
+                        onChange={(e) => setProductSearchQuery(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Product checkboxes */}
+                    <div className="border rounded-md p-4 max-h-96 overflow-y-auto space-y-2">
+                      {filteredProducts.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No products found</p>
+                      ) : (
+                        filteredProducts.map((product) => {
+                          const isSelected = selectedProductIds.has(product.id)
+                          const isAlreadyAttached = currentClientProductIds.has(product.id)
+                          
+                          return (
+                            <div
+                              key={product.id}
+                              className={`flex items-center space-x-2 p-2 rounded ${
+                                isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                              } ${isAlreadyAttached ? "opacity-60" : ""}`}
+                            >
+                              <input
+                                type="checkbox"
+                                id={`product-${product.id}`}
+                                checked={isSelected}
+                                onChange={() => handleProductToggle(product.id)}
+                                className="h-4 w-4 rounded border-gray-300"
+                                disabled={isAlreadyAttached}
+                              />
+                              <label
+                                htmlFor={`product-${product.id}`}
+                                className="flex-1 text-sm cursor-pointer"
+                              >
                           {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                                {product.category_name && (
+                                  <span className="text-xs text-muted-foreground ml-2">
+                                    ({product.category_name})
+                                  </span>
+                                )}
+                                {isAlreadyAttached && (
+                                  <span className="text-xs text-muted-foreground ml-2">(Already attached)</span>
+                                )}
+                              </label>
                 </div>
-                <Button type="submit" disabled={loading}>
-                  Attach Product
+                          )
+                        })
+                      )}
+                    </div>
+
+                    {selectedProductIds.size > 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedProductIds.size} product(s) selected
+                      </p>
+                    )}
+
+                    {/* Save button */}
+                    <Button
+                      onClick={handleBulkAttachProducts}
+                      disabled={loading || selectedProductIds.size === 0}
+                      className="w-full"
+                    >
+                      {loading ? "Attaching..." : `Save Assignment (${selectedProductIds.size} product${selectedProductIds.size !== 1 ? 's' : ''})`}
                 </Button>
-              </form>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 

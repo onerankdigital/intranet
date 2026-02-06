@@ -52,10 +52,15 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
 
+  // Connected clients pagination and filtering
+  const [clientsPage, setClientsPage] = useState(1)
+  const [clientsPageSize] = useState(10)
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+
   useEffect(() => {
     fetchLeads()
     fetchClients()
-    
+
     // Check if we should show results view from URL params
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search)
@@ -73,6 +78,8 @@ export default function LeadsPage() {
       }
     }
   }, [])
+
+  // Removed auto-show - now showing search form by default with connected clients
 
   // Restore results view after leads are loaded
   useEffect(() => {
@@ -189,12 +196,6 @@ export default function LeadsPage() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // At least one field must be filled
-    if (!formData.client_id && !formData.client_name && !formData.domain) {
-      setMessage({ type: "error", text: "Please fill at least one field (Client ID, Client Name, or Domain)" })
-      return
-    }
 
     // Save form data to sessionStorage
     sessionStorage.setItem('leadFormData', JSON.stringify(formData))
@@ -460,7 +461,7 @@ export default function LeadsPage() {
                       ))}
                   </TableBody>
                 </Table>
-                
+
                 {/* Pagination */}
                 {ordPanelLeads.length > pageSize && (
                   <div className="flex items-center justify-between mt-4">
@@ -493,152 +494,7 @@ export default function LeadsPage() {
             )}
           </CardContent>
         </Card>
-      ) : !showResults ? (
-        /* Search Form */
-        <Card className="border-2">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5 text-primary" />
-              Search Leads
-            </CardTitle>
-            <CardDescription>Enter client ID, client name, or domain to search for leads</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleFormSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Client ID */}
-                <div className="space-y-2">
-                  <Label htmlFor="client_id">Client ID</Label>
-                  <div className="relative">
-                    <Input
-                      id="client_id"
-                      placeholder="Enter client ID..."
-                      value={formData.client_id}
-                      onChange={(e) => {
-                        setFormData({ ...formData, client_id: e.target.value })
-                        setShowClientIdSuggestions(true)
-                      }}
-                      onFocus={() => setShowClientIdSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowClientIdSuggestions(false), 200)}
-                      className="h-11"
-                    />
-                    {showClientIdSuggestions && formData.client_id && clientIdSuggestions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-950 border rounded-md shadow-lg max-h-48 overflow-auto">
-                        {clientIdSuggestions
-                          .filter(id => id.toLowerCase().includes(formData.client_id.toLowerCase()))
-                          .slice(0, 10)
-                          .map((suggestion) => (
-                            <div
-                              key={suggestion}
-                              className="px-3 py-2 cursor-pointer hover:bg-accent text-sm"
-                              onMouseDown={() => {
-                                setFormData({ ...formData, client_id: suggestion })
-                                setShowClientIdSuggestions(false)
-                              }}
-                            >
-                              {suggestion}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Client Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="client_name">Client Name</Label>
-                  <div className="relative">
-                    <Input
-                      id="client_name"
-                      placeholder="Enter client name..."
-                      value={formData.client_name}
-                      onChange={(e) => {
-                        setFormData({ ...formData, client_name: e.target.value })
-                        setShowClientNameSuggestions(true)
-                      }}
-                      onFocus={() => setShowClientNameSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowClientNameSuggestions(false), 200)}
-                      className="h-11"
-                    />
-                    {showClientNameSuggestions && formData.client_name && clientNameSuggestions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-950 border rounded-md shadow-lg max-h-48 overflow-auto">
-                        {clientNameSuggestions
-                          .filter(name => name.toLowerCase().includes(formData.client_name.toLowerCase()))
-                          .slice(0, 10)
-                          .map((suggestion) => (
-                            <div
-                              key={suggestion}
-                              className="px-3 py-2 cursor-pointer hover:bg-accent text-sm"
-                              onMouseDown={() => {
-                                setFormData({ ...formData, client_name: suggestion })
-                                setShowClientNameSuggestions(false)
-                              }}
-                            >
-                              {suggestion}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Domain */}
-                <div className="space-y-2">
-                  <Label htmlFor="domain">Domain</Label>
-                  <div className="relative">
-                    <Input
-                      id="domain"
-                      placeholder="Enter domain..."
-                      value={formData.domain}
-                      onChange={(e) => {
-                        setFormData({ ...formData, domain: e.target.value })
-                        setShowDomainSuggestions(true)
-                      }}
-                      onFocus={() => setShowDomainSuggestions(true)}
-                      onBlur={() => setTimeout(() => setShowDomainSuggestions(false), 200)}
-                      className="h-11"
-                    />
-                    {showDomainSuggestions && formData.domain && domainSuggestions.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-950 border rounded-md shadow-lg max-h-48 overflow-auto">
-                        {domainSuggestions
-                          .filter(domain => domain.toLowerCase().includes(formData.domain.toLowerCase()))
-                          .slice(0, 10)
-                          .map((suggestion) => (
-                            <div
-                              key={suggestion}
-                              className="px-3 py-2 cursor-pointer hover:bg-accent text-sm"
-                              onMouseDown={() => {
-                                setFormData({ ...formData, domain: suggestion })
-                                setShowDomainSuggestions(false)
-                              }}
-                            >
-                              {suggestion}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit" disabled={loading}>
-                  {loading ? "Searching..." : "Search Leads"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setFormData({ client_id: "", client_name: "", domain: "" })
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      ) : (
+      ) : showResults ? (
         /* Results View */
         <>
           {/* Source Breakdown */}
@@ -903,6 +759,140 @@ export default function LeadsPage() {
               )}
             </CardContent>
           </Card>
+        </>
+      ) : (
+        /* Connected Clients Only */
+        <>
+          {clients.length > 0 && (
+            <Card className="border-2 mt-6">
+              <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  Your Connected Clients
+                </CardTitle>
+                <CardDescription>
+                  You have access to {clients.length} client{clients.length !== 1 ? 's' : ''}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                {/* Search/Filter for Connected Clients */}
+                <div className="mb-4">
+                  <Input
+                    placeholder="Search by client ID, name, or domain..."
+                    value={clientSearchTerm}
+                    onChange={(e) => {
+                      setClientSearchTerm(e.target.value)
+                      setClientsPage(1) // Reset to first page on search
+                    }}
+                    className="max-w-md"
+                  />
+                </div>
+
+                {(() => {
+                  // Filter clients based on search term
+                  const filteredClients = clients.filter((client) => {
+                    const searchLower = clientSearchTerm.toLowerCase()
+                    return (
+                      client.client_id?.toLowerCase().includes(searchLower) ||
+                      client.name?.toLowerCase().includes(searchLower) ||
+                      client.domain_name?.toLowerCase().includes(searchLower)
+                    )
+                  })
+
+                  // Paginate filtered clients
+                  const startIndex = (clientsPage - 1) * clientsPageSize
+                  const endIndex = startIndex + clientsPageSize
+                  const paginatedClients = filteredClients.slice(startIndex, endIndex)
+                  const totalPages = Math.ceil(filteredClients.length / clientsPageSize)
+
+                  return (
+                    <>
+                      {filteredClients.length === 0 ? (
+                        <Alert>
+                          <AlertDescription>
+                            No clients found matching your search criteria.
+                          </AlertDescription>
+                        </Alert>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {paginatedClients.map((client) => (
+                              <Card key={client.client_id} className="border hover:border-primary/50 transition-colors">
+                                <CardHeader className="pb-3">
+                                  <CardTitle className="text-base font-semibold">
+                                    {client.name || 'Unnamed Client'}
+                                  </CardTitle>
+                                  <CardDescription className="text-xs font-mono space-y-1">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-muted-foreground">ID:</span>
+                                      <span>{client.client_id}</span>
+                                    </div>
+                                    {client.domain_name && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-muted-foreground">Domain:</span>
+                                        <span className="text-primary">{client.domain_name}</span>
+                                      </div>
+                                    )}
+                                  </CardDescription>
+                                </CardHeader>
+                                <CardContent className="pb-4">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full"
+                                    onClick={() => {
+                                      setFormData({ ...formData, client_id: client.client_id })
+                                      handleFormSubmit(new Event('submit') as any)
+                                    }}
+                                  >
+                                    View Leads
+                                  </Button>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+
+                          {/* Pagination */}
+                          {totalPages > 1 && (
+                            <div className="flex items-center justify-between mt-6">
+                              <p className="text-sm text-muted-foreground">
+                                Showing {startIndex + 1} to {Math.min(endIndex, filteredClients.length)} of {filteredClients.length} clients
+                              </p>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setClientsPage(p => Math.max(1, p - 1))}
+                                  disabled={clientsPage === 1}
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                  Previous
+                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-muted-foreground">
+                                    Page {clientsPage} of {totalPages}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setClientsPage(p => Math.min(totalPages, p + 1))}
+                                  disabled={clientsPage === totalPages}
+                                >
+                                  Next
+                                  <ChevronRight className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
     </div>

@@ -704,15 +704,23 @@ export default function ClientDetailPage() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <Badge 
-                              variant={
-                                transaction.status === "verified" ? "default" : 
-                                transaction.status === "rejected" ? "destructive" : 
-                                "secondary"
-                              }
-                            >
-                              {transaction.status}
-                            </Badge>
+                            <div className="space-y-1">
+                              <Badge 
+                                variant={
+                                  transaction.status === "verified" ? "default" : 
+                                  transaction.status === "rejected" ? "destructive" : 
+                                  "secondary"
+                                }
+                              >
+                                {transaction.status}
+                              </Badge>
+                              {transaction.status === "rejected" && transaction.rejection_reason && (
+                                <div className="text-xs text-muted-foreground mt-1 max-w-xs">
+                                  <span className="font-medium text-destructive">Reason: </span>
+                                  {transaction.rejection_reason}
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             {new Date(transaction.created_at).toLocaleDateString('en-IN')}

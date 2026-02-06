@@ -30,6 +30,10 @@ export default function APIKeysPage() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterClientId, setFilterClientId] = useState<string>("")
+  const [selectedKey, setSelectedKey] = useState<any | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
+  const [editingKey, setEditingKey] = useState<any | null>(null)
+  const [showEdit, setShowEdit] = useState(false)
 
   const [createData, setCreateData] = useState({
     client_id: "",
@@ -138,6 +142,57 @@ export default function APIKeysPage() {
       }
     }
     setTimeout(() => setMessage(null), 2000)
+  }
+
+  const handleViewDetails = async (apiKeyId: string) => {
+    setLoading(true)
+    setMessage(null)
+    try {
+      const response = await apiKeyApi.get(apiKeyId)
+      if (response.error) {
+        setMessage({ type: "error", text: response.error })
+      } else {
+        setSelectedKey(response.data)
+        setShowDetails(true)
+      }
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.error || "Failed to fetch API key details" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEdit = (key: any) => {
+    setEditingKey({ ...key })
+    setShowEdit(true)
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingKey) return
+
+    setLoading(true)
+    setMessage(null)
+    
+    const updateData: any = {}
+    if (editingKey.status) updateData.status = editingKey.status
+    if (editingKey.scopes) updateData.scopes = typeof editingKey.scopes === 'string' 
+      ? editingKey.scopes.split(",").map((s: string) => s.trim()).filter(Boolean)
+      : editingKey.scopes
+    if (editingKey.expires_at !== undefined) updateData.expires_at = editingKey.expires_at || null
+
+    const response = await apiKeyApi.update(editingKey.id, updateData)
+    
+    if (response.error) {
+      setMessage({ type: "error", text: response.error })
+    } else {
+      setMessage({ type: "success", text: "API key updated successfully" })
+      setShowEdit(false)
+      setEditingKey(null)
+      fetchAPIKeys(filterClientId || undefined)
+    }
+    
+    setLoading(false)
   }
 
   const handleDisable = async (apiKeyId: string, currentStatus: string) => {
@@ -486,6 +541,27 @@ export default function APIKeysPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleViewDetails(key.id)}
+                            disabled={loading}
+                            className="gap-1"
+                            title="View Details"
+                          >
+                            <Eye className="h-3 w-3" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEdit(key)}
+                            disabled={loading}
+                            className="gap-1"
+                            title="Edit"
+                          >
+                            Edit
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"

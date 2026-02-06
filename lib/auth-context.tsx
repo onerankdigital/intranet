@@ -6,6 +6,7 @@ import { authApi, apiClient } from "@/lib/api"
 
 interface User {
   id: string
+  name: string
   email: string
   is_admin: boolean | string  // Can be boolean or string "true"/"false" from API
   status: string
@@ -49,11 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       apiClient.setToken(token)
       const response = await authApi.me()
-      
-      if (response.data) {
+
+      // Check if response has data and it's not an error
+      if (response.data && !response.error) {
         setUser(response.data as User)
-      } else {
-        // Token invalid, clear it
+      } else if (response.error) {
+        // Only clear token if there's an actual error (like 401)
+        console.error("Auth check error:", response.error)
         apiClient.setToken(null)
         if (typeof window !== "undefined") {
           localStorage.removeItem("access_token")
@@ -63,52 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Auth check failed:", error)
+      // Don't clear token on network errors, only on auth errors
       setUser(null)
-      apiClient.setToken(null)
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("access_token")
-        localStorage.removeItem("refresh_token")
-      }
     } finally {
       setLoading(false)
     }
   }
 
-  // Helper function to decode JWT token and check expiration
-  const checkTokenExpiration = (token: string): boolean => {
-    try {
-      const base64Url = token.split('.')[1]
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-      const jsonPayload = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-          .join('')
-      )
-      const decoded = JSON.parse(jsonPayload)
-      const exp = decoded.exp
-      if (exp) {
-        const expirationTime = exp * 1000 // Convert to milliseconds
-        const now = Date.now()
-        return now >= expirationTime
-      }
-      return false
-    } catch (error) {
-      console.error('Error decoding token:', error)
-      return true // Assume expired if can't decode
-    }
-  }
-
-  // Function to check if token is expired and logout if needed
-  const validateTokenExpiration = useCallback(() => {
-    if (typeof window === 'undefined') return
-    
-    const token = localStorage.getItem('access_token')
-    if (token && checkTokenExpiration(token)) {
-      // Token expired, logout
-      logout()
-    }
-  }, [logout])
+  // Token expiration check removed - tokens now persist indefinitely until explicit logout
 
   // Set up API client unauthorized callback
   useEffect(() => {
@@ -119,39 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     checkAuth()
-    
-    // Check token expiration on mount
-    validateTokenExpiration()
-    
-    // Check token expiration every minute
-    const intervalId = setInterval(() => {
-      validateTokenExpiration()
-    }, 60000) // Check every minute
-    
-    // Calculate time until next midnight
-    const now = new Date()
-    const midnight = new Date()
-    midnight.setHours(24, 0, 0, 0) // Next midnight
-    const msUntilMidnight = midnight.getTime() - now.getTime()
-    
-    // Set a timeout to check at midnight
-    const midnightTimeout = setTimeout(() => {
-      validateTokenExpiration()
-      // Then check every minute after midnight
-      const midnightInterval = setInterval(() => {
-        validateTokenExpiration()
-      }, 60000)
-      // Clear interval after 1 hour (tokens typically expire at midnight)
-      setTimeout(() => {
-        clearInterval(midnightInterval)
-      }, 3600000) // 1 hour
-    }, msUntilMidnight)
-    
-    return () => {
-      clearInterval(intervalId)
-      clearTimeout(midnightTimeout)
-    }
-  }, [validateTokenExpiration])
+    // Token expiration checking removed - tokens persist until explicit logout
+  }, [])
 
   const login = async (email: string, password: string) => {
     try {

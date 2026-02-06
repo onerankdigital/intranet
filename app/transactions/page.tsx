@@ -40,6 +40,8 @@ export default function TransactionsPage() {
   
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectionReason, setRejectionReason] = useState("")
+  const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null)
+  const [showDetails, setShowDetails] = useState(false)
 
   useEffect(() => {
     fetchTransactions()
@@ -479,13 +481,10 @@ export default function TransactionsPage() {
                   <TableRow className="bg-muted/50">
                     <TableHead className="font-semibold">Transaction ID</TableHead>
                     <TableHead className="font-semibold">Client</TableHead>
-                    <TableHead className="font-semibold">Payment Method</TableHead>
                     <TableHead className="font-semibold">Amount</TableHead>
                     <TableHead className="font-semibold">Status</TableHead>
-                    <TableHead className="font-semibold">Created By</TableHead>
-                    <TableHead className="font-semibold">Verified By</TableHead>
                     <TableHead className="font-semibold">Date</TableHead>
-                    <TableHead className="font-semibold">Actions</TableHead>
+                    <TableHead className="font-semibold text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -498,95 +497,63 @@ export default function TransactionsPage() {
                         <span className="font-medium">{transaction.client_id}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {transaction.payment_method || "N/A"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
                         <span className="font-semibold text-green-600">
                           ₹{parseFloat(transaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <Badge 
-                            variant={
-                              transaction.status === "verified" ? "default" : 
-                              transaction.status === "rejected" ? "destructive" : 
-                              "secondary"
-                            }
-                          >
-                            {transaction.status}
-                          </Badge>
-                          {transaction.status === "rejected" && transaction.rejection_reason && (
-                            <div className="text-xs text-muted-foreground mt-1 max-w-xs">
-                              <span className="font-medium">Reason: </span>
-                              {transaction.rejection_reason}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {transaction.created_by_user_email ? (
-                            <>
-                              <div className="text-xs font-medium">{transaction.created_by_user_email}</div>
-                              {transaction.created_by_user_id && (
-                                <div className="text-xs text-muted-foreground">ID: {transaction.created_by_user_id.substring(0, 8)}...</div>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">N/A</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {transaction.verified_by_user_email ? (
-                            <>
-                              <div className="text-xs font-medium">{transaction.verified_by_user_email}</div>
-                              {transaction.verified_by_user_id && (
-                                <div className="text-xs text-muted-foreground">ID: {transaction.verified_by_user_id.substring(0, 8)}...</div>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
-                          )}
-                        </div>
+                        <Badge 
+                          variant={
+                            transaction.status === "verified" ? "default" : 
+                            transaction.status === "rejected" ? "destructive" : 
+                            "secondary"
+                          }
+                        >
+                          {transaction.status}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         {new Date(transaction.created_at).toLocaleDateString('en-IN')}
                       </TableCell>
-                      <TableCell>
-                        {transaction.status === "pending" && (
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleVerify(transaction.id, "verified")}
-                              disabled={verifyingId === transaction.id}
-                              className="gap-1 text-green-600"
-                            >
-                              <Check className="h-3 w-3" />
-                              Verify
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRejectClick(transaction.id)}
-                              disabled={verifyingId === transaction.id}
-                              className="gap-1 text-red-600"
-                            >
-                              <X className="h-3 w-3" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                        {transaction.status !== "pending" && (
-                          <span className="text-xs text-muted-foreground">
-                            {transaction.verified_at ? new Date(transaction.verified_at).toLocaleDateString('en-IN') : "-"}
-                          </span>
-                        )}
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTransaction(transaction)
+                              setShowDetails(true)
+                            }}
+                            className="gap-1"
+                          >
+                            <Eye className="h-3 w-3" />
+                            View Details
+                          </Button>
+                          {transaction.status === "pending" && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleVerify(transaction.id, "verified")}
+                                disabled={verifyingId === transaction.id}
+                                className="gap-1 text-green-600"
+                              >
+                                <Check className="h-3 w-3" />
+                                Verify
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRejectClick(transaction.id)}
+                                disabled={verifyingId === transaction.id}
+                                className="gap-1 text-red-600"
+                              >
+                                <X className="h-3 w-3" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -634,6 +601,185 @@ export default function TransactionsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Transaction Details Dialog */}
+      {selectedTransaction && (
+        <AlertDialog open={showDetails} onOpenChange={(open) => {
+          setShowDetails(open)
+          if (!open) setSelectedTransaction(null)
+        }}>
+          <AlertDialogContent className="max-w-3xl bg-white dark:bg-gray-900 border-2 shadow-2xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-xl font-bold">Transaction Details</AlertDialogTitle>
+              <AlertDialogDescription>
+                Complete information about this transaction
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Transaction ID</Label>
+                  <p className="mt-1 font-mono text-sm">{selectedTransaction.transaction_id}</p>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Transaction Status</Label>
+                  <div className="mt-1">
+                    <Badge 
+                      variant={
+                        selectedTransaction.status === "verified" ? "default" : 
+                        selectedTransaction.status === "rejected" ? "destructive" : 
+                        "secondary"
+                      }
+                    >
+                      {selectedTransaction.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Client ID</Label>
+                  <p className="mt-1 text-sm font-medium">{selectedTransaction.client_id}</p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Amount</Label>
+                  <p className="mt-1 text-lg font-semibold text-green-600">
+                    ₹{parseFloat(selectedTransaction.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Payment Method</Label>
+                  <div className="mt-1">
+                    <Badge variant="outline">
+                      {selectedTransaction.payment_method || "N/A"}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Created Date</Label>
+                  <p className="mt-1 text-sm">
+                    {new Date(selectedTransaction.created_at).toLocaleString('en-IN')}
+                  </p>
+                </div>
+
+                {selectedTransaction.verified_at && (
+                  <div>
+                    <Label className="text-sm font-semibold text-muted-foreground">
+                      {selectedTransaction.status === "verified" ? "Verified Date" : "Rejected Date"}
+                    </Label>
+                    <p className="mt-1 text-sm">
+                      {new Date(selectedTransaction.verified_at).toLocaleString('en-IN')}
+                    </p>
+                  </div>
+                )}
+
+                {selectedTransaction.status === "rejected" && selectedTransaction.rejection_reason && (
+                  <div className="md:col-span-2">
+                    <Label className="text-sm font-semibold text-destructive">Rejection Reason</Label>
+                    <div className="mt-1 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                      <p className="text-sm text-foreground">{selectedTransaction.rejection_reason}</p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTransaction.notes && (
+                  <div className="md:col-span-2">
+                    <Label className="text-sm font-semibold text-muted-foreground">Notes</Label>
+                    <p className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
+                      {selectedTransaction.notes}
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-sm font-semibold text-muted-foreground">Created By</Label>
+                  <div className="mt-1 space-y-1">
+                    {selectedTransaction.created_by_user_email ? (
+                      <>
+                        <p className="text-sm font-medium">{selectedTransaction.created_by_user_email}</p>
+                        {selectedTransaction.created_by_user_id && (
+                          <p className="text-xs text-muted-foreground font-mono">
+                            ID: {selectedTransaction.created_by_user_id}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">N/A</p>
+                    )}
+                  </div>
+                </div>
+
+                {(selectedTransaction.verified_by_user_email || selectedTransaction.verified_by_user_id) && (
+                  <div>
+                    <Label className="text-sm font-semibold text-muted-foreground">
+                      {selectedTransaction.status === "verified" ? "Verified By" : "Rejected By"}
+                    </Label>
+                    <div className="mt-1 space-y-1">
+                      {selectedTransaction.verified_by_user_email ? (
+                        <>
+                          <p className="text-sm font-medium">{selectedTransaction.verified_by_user_email}</p>
+                          {selectedTransaction.verified_by_user_id && (
+                            <p className="text-xs text-muted-foreground font-mono">
+                              ID: {selectedTransaction.verified_by_user_id}
+                            </p>
+                          )}
+                        </>
+                      ) : selectedTransaction.verified_by_user_id ? (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          ID: {selectedTransaction.verified_by_user_id}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">-</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <AlertDialogFooter>
+              {selectedTransaction.status === "pending" && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowDetails(false)
+                      handleVerify(selectedTransaction.id, "verified")
+                    }}
+                    disabled={verifyingId === selectedTransaction.id}
+                    className="gap-1 text-green-600"
+                  >
+                    <Check className="h-4 w-4" />
+                    Verify
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowDetails(false)
+                      handleRejectClick(selectedTransaction.id)
+                    }}
+                    disabled={verifyingId === selectedTransaction.id}
+                    className="gap-1 text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                    Reject
+                  </Button>
+                </>
+              )}
+              <AlertDialogCancel onClick={() => {
+                setShowDetails(false)
+                setSelectedTransaction(null)
+              }}>
+                Close
+              </AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   )
 }

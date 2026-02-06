@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader } from "@/components/ui/loader"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { userClientApi, clientApi, roleApi, authApi } from "@/lib/api"
 
 export default function UserClientsPage() {
@@ -18,13 +19,14 @@ export default function UserClientsPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
-  const [createData, setCreateData] = useState({
-    user_id: "",
-    client_id: "",
-    role_id: "",
-    reports_to_user_client_id: "",
-    status: "active",
-  })
+  // Step 1: Select user
+  const [selectedUserId, setSelectedUserId] = useState("")
+  // Step 2: Select clients with checkboxes
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set())
+  const [clientSearchQuery, setClientSearchQuery] = useState("")
+  
+  // Current user-client assignments to check which are already assigned
+  const [currentAssignments, setCurrentAssignments] = useState<Map<string, any>>(new Map())
 
   useEffect(() => {
     fetchUserClients()
@@ -65,39 +67,122 @@ export default function UserClientsPage() {
     }
   }
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // When user is selected, load their current assignments
+  useEffect(() => {
+    if (selectedUserId) {
+      const userAssignments = userClients.filter(uc => uc.user_id === selectedUserId)
+      const assignmentMap = new Map()
+      userAssignments.forEach(uc => {
+        assignmentMap.set(uc.client_id, uc)
+      })
+      setCurrentAssignments(assignmentMap)
+      // Pre-select already assigned clients
+      setSelectedClientIds(new Set(userAssignments.map(uc => uc.client_id)))
+    } else {
+      setCurrentAssignments(new Map())
+      setSelectedClientIds(new Set())
+    }
+  }, [selectedUserId, userClients])
+
+  // Filter clients based on search query
+  const filteredClients = clients.filter(client => {
+    const searchLower = clientSearchQuery.toLowerCase()
+    const name = (client.name || "").toLowerCase()
+    const clientId = (client.client_id || client.id || "").toLowerCase()
+    return name.includes(searchLower) || clientId.includes(searchLower)
+  })
+
+  const handleClientToggle = (clientId: string) => {
+    const newSelection = new Set(selectedClientIds)
+    if (newSelection.has(clientId)) {
+      newSelection.delete(clientId)
+    } else {
+      newSelection.add(clientId)
+    }
+    setSelectedClientIds(newSelection)
+  }
+
+  const handleSelectAllClients = () => {
+    if (selectedClientIds.size === filteredClients.length) {
+      setSelectedClientIds(new Set())
+    } else {
+      setSelectedClientIds(new Set(filteredClients.map(c => c.client_id || c.id)))
+    }
+  }
+
+  const handleBulkAssign = async () => {
+    if (!selectedUserId) {
+      setMessage({ type: "error", text: "Please select a user first" })
+      return
+    }
+
+    if (selectedClientIds.size === 0) {
+      setMessage({ type: "error", text: "Please select at least one client" })
+      return
+    }
+
+    // Get default role (first role or ask user to select)
+    if (roles.length === 0) {
+      setMessage({ type: "error", text: "No roles available. Please create a role first." })
+      return
+    }
+
+    const defaultRoleId = roles[0].id
     setLoading(true)
     setMessage(null)
 
-    const data: any = {
-      user_id: createData.user_id,
-      client_id: createData.client_id,
-      role_id: createData.role_id,
-      status: createData.status,
-    }
+    try {
+      // Assign each selected client to the user
+      const assignments = Array.from(selectedClientIds)
+      let successCount = 0
+      let errorCount = 0
 
-    if (createData.reports_to_user_client_id) {
-      data.reports_to_user_client_id = createData.reports_to_user_client_id
-    }
+      for (const clientId of assignments) {
+        // Check if already assigned
+        if (currentAssignments.has(clientId)) {
+          continue // Skip already assigned clients
+        }
 
-    const response = await userClientApi.create(data)
-    
-    if (response.error) {
-      setMessage({ type: "error", text: response.error })
-    } else {
-      setMessage({ type: "success", text: "User assigned to client successfully!" })
-      setCreateData({
-        user_id: "",
-        client_id: "",
-        role_id: "",
-        reports_to_user_client_id: "",
-        status: "active",
-      })
-      setShowCreate(false)
-      fetchUserClients()
+        const data: any = {
+          user_id: selectedUserId,
+          client_id: clientId,
+          role_id: defaultRoleId,
+          status: "active",
+        }
+
+        const response = await userClientApi.create(data)
+        
+        if (response.error) {
+          errorCount++
+          console.error(`Failed to assign client ${clientId}:`, response.error)
+        } else {
+          successCount++
+        }
+      }
+
+      if (errorCount === 0) {
+        setMessage({ 
+          type: "success", 
+          text: `Successfully assigned ${successCount} client(s) to user!` 
+        })
+        // Reset form
+        setSelectedUserId("")
+        setSelectedClientIds(new Set())
+        setClientSearchQuery("")
+        setShowCreate(false)
+        fetchUserClients()
+      } else {
+        setMessage({ 
+          type: "error", 
+          text: `Assigned ${successCount} client(s), but ${errorCount} failed. Check console for details.` 
+        })
+        fetchUserClients()
+      }
+    } catch (error: any) {
+      setMessage({ type: "error", text: error.error || "Failed to assign clients" })
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
@@ -129,87 +214,112 @@ export default function UserClientsPage() {
       {showCreate && (
         <Card>
           <CardHeader>
-            <CardTitle>Assign User to Client</CardTitle>
-            <CardDescription>Create a new user-client relationship with a role</CardDescription>
+            <CardTitle>Assign User to Clients</CardTitle>
+            <CardDescription>Select a user and then choose multiple clients to assign</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-6">
+              {/* Step 1: Select User */}
               <div className="space-y-2">
-                <Label htmlFor="user_id">User</Label>
-                <select
-                  id="user_id"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={createData.user_id}
-                  onChange={(e) => setCreateData({ ...createData, user_id: e.target.value })}
-                  required
-                >
-                  <option value="">-- Select a user --</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {user.email} {user.is_admin ? "(Admin)" : ""}
-                    </option>
-                  ))}
-                </select>
+                <Label htmlFor="user_id">Step 1: Select User</Label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger id="user_id">
+                    <SelectValue placeholder="-- Select a user --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.email} {user.is_admin ? "(Admin)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   Create users first in the Auth page if needed.
                 </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="client_id">Client</Label>
-                <select
-                  id="client_id"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={createData.client_id}
-                  onChange={(e) => setCreateData({ ...createData, client_id: e.target.value })}
-                  required
-                >
-                  <option value="">-- Select a client --</option>
-                  {clients.map((client) => (
-                    <option key={client.client_id || client.id} value={client.client_id || client.id}>
-                      {client.name} ({client.client_id || client.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="role_id">Role</Label>
-                <select
-                  id="role_id"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={createData.role_id}
-                  onChange={(e) => setCreateData({ ...createData, role_id: e.target.value })}
-                  required
-                >
-                  <option value="">-- Select a role --</option>
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name} (Level {role.level})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reports_to">Reports To (User-Client ID, optional)</Label>
-                <Input
-                  id="reports_to"
-                  placeholder="Enter user-client ID for hierarchy"
-                  value={createData.reports_to_user_client_id}
-                  onChange={(e) => setCreateData({ ...createData, reports_to_user_client_id: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Input
-                  id="status"
-                  placeholder="active"
-                  value={createData.status}
-                  onChange={(e) => setCreateData({ ...createData, status: e.target.value })}
-                />
-              </div>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Assigning..." : "Assign User to Client"}
-              </Button>
-            </form>
+
+              {/* Step 2: Select Clients (only shown if user is selected) */}
+              {selectedUserId && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Step 2: Select Clients (Select multiple)</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAllClients}
+                    >
+                      {selectedClientIds.size === filteredClients.length ? "Deselect All" : "Select All"}
+                    </Button>
+                  </div>
+
+                  {/* Search input */}
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Search clients by name or ID..."
+                      value={clientSearchQuery}
+                      onChange={(e) => setClientSearchQuery(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Client checkboxes */}
+                  <div className="border rounded-md p-4 max-h-96 overflow-y-auto space-y-2">
+                    {filteredClients.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No clients found</p>
+                    ) : (
+                      filteredClients.map((client) => {
+                        const clientId = client.client_id || client.id
+                        const isAlreadyAssigned = currentAssignments.has(clientId)
+                        const isSelected = selectedClientIds.has(clientId)
+                        
+                        return (
+                          <div
+                            key={clientId}
+                            className={`flex items-center space-x-2 p-2 rounded ${
+                              isSelected ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                            } ${isAlreadyAssigned ? "opacity-60" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              id={`client-${clientId}`}
+                              checked={isSelected}
+                              onChange={() => handleClientToggle(clientId)}
+                              className="h-4 w-4 rounded border-gray-300"
+                              disabled={isAlreadyAssigned}
+                            />
+                            <label
+                              htmlFor={`client-${clientId}`}
+                              className="flex-1 text-sm cursor-pointer"
+                            >
+                              {client.name} ({clientId})
+                              {isAlreadyAssigned && (
+                                <span className="text-xs text-muted-foreground ml-2">(Already assigned)</span>
+                              )}
+                            </label>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {selectedClientIds.size > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {selectedClientIds.size} client(s) selected
+                    </p>
+                  )}
+
+                  {/* Save button */}
+                  <Button
+                    onClick={handleBulkAssign}
+                    disabled={loading || selectedClientIds.size === 0}
+                    className="w-full"
+                  >
+                    {loading ? "Assigning..." : `Save Assignment (${selectedClientIds.size} client${selectedClientIds.size !== 1 ? 's' : ''})`}
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

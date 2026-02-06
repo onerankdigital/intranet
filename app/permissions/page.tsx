@@ -26,6 +26,7 @@ export default function PermissionsPage() {
     method: "GET",
     path: "",
     description: "",
+    crossClientAccess: false,
   })
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export default function PermissionsPage() {
         method: endpoint.method,
         path: endpoint.path,
         description: endpoint.description || "",
+        crossClientAccess: false,
       })
     }
   }
@@ -86,11 +88,31 @@ export default function PermissionsPage() {
       setMessage({ type: "error", text: response.error })
     } else {
       setMessage({ type: "success", text: "Permission created successfully!" })
-      setCreateData({ method: "GET", path: "", description: "" })
+      setCreateData({ method: "GET", path: "", description: "", crossClientAccess: false })
       setShowCreate(false)
       fetchPermissions()
     }
     setLoading(false)
+  }
+
+  // Helper function to check if a permission is cross-client
+  const isCrossClientPermission = (permission: any): boolean => {
+    const path = permission.path || ""
+    const description = (permission.description || "").toLowerCase()
+    
+    // Check if path ends with /all
+    if (path.endsWith('/all')) {
+      return true
+    }
+    
+    // Check if description contains cross-client keywords
+    const crossClientKeywords = [
+      'cross-client', 'cross client', 'all clients', 'all enquiries', 
+      'all transactions', 'all leads', 'global access', 'admin access',
+      'view all', 'access all'
+    ]
+    
+    return crossClientKeywords.some(keyword => description.includes(keyword))
   }
 
   const filteredPermissions = permissions.filter((perm) => {
@@ -258,6 +280,71 @@ export default function PermissionsPage() {
                   className="h-11"
                 />
               </div>
+
+              {/* Cross-Client Access Option */}
+              <div className="space-y-3 p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="checkbox"
+                    id="crossClientAccess"
+                    checked={createData.crossClientAccess}
+                    onChange={(e) => {
+                      const crossClient = e.target.checked
+                      let newPath = createData.path
+                      let newDescription = createData.description
+                      
+                      if (crossClient) {
+                        // If enabling cross-client, append /all if not already there
+                        if (newPath && !newPath.endsWith('/all')) {
+                          newPath = newPath + '/all'
+                        }
+                        // Add cross-client keywords to description if not present
+                        const crossClientKeywords = ['cross-client', 'all clients', 'all enquiries', 'all transactions']
+                        const hasKeyword = crossClientKeywords.some(keyword => 
+                          newDescription.toLowerCase().includes(keyword.toLowerCase())
+                        )
+                        if (!hasKeyword && newPath) {
+                          const resource = newPath.replace('/api/', '').replace('/all', '')
+                          newDescription = newDescription 
+                            ? `${newDescription} - Cross-client access to all ${resource}`
+                            : `Cross-client access to all ${resource}`
+                        }
+                      } else {
+                        // If disabling, remove /all suffix
+                        if (newPath.endsWith('/all')) {
+                          newPath = newPath.replace('/all', '')
+                        }
+                      }
+                      
+                      setCreateData({
+                        ...createData,
+                        crossClientAccess: crossClient,
+                        path: newPath,
+                        description: newDescription,
+                      })
+                    }}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="crossClientAccess" className="text-sm font-semibold cursor-pointer">
+                      Cross-Client Access (Admin-like access)
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enable this to grant access to all data across all clients for this endpoint.
+                      When enabled, the path will be updated to include "/all" suffix (e.g., /api/leads → /api/leads/all)
+                      and description will include cross-client keywords.
+                    </p>
+                    <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                      <p className="font-medium">Examples:</p>
+                      <ul className="list-disc list-inside space-y-0.5 ml-2">
+                        <li>View all enquiries across all clients</li>
+                        <li>View all transactions across all clients</li>
+                        <li>View all clients globally</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
               
               <div className="flex items-center gap-3 pt-2">
                 <Button type="submit" disabled={loading} className="gap-2">
@@ -278,7 +365,7 @@ export default function PermissionsPage() {
                   variant="outline"
                   onClick={() => {
                     setShowCreate(false)
-                    setCreateData({ method: "GET", path: "", description: "" })
+                    setCreateData({ method: "GET", path: "", description: "", crossClientAccess: false })
                   }}
                 >
                   Cancel
@@ -339,39 +426,54 @@ export default function PermissionsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="font-semibold">Method</TableHead>
-                    <TableHead className="font-semibold">Path</TableHead>
-                    <TableHead className="font-semibold">Description</TableHead>
-                    <TableHead className="font-semibold">ID</TableHead>
+                  <TableHead className="font-semibold">Method</TableHead>
+                  <TableHead className="font-semibold">Path</TableHead>
+                  <TableHead className="font-semibold">Description</TableHead>
+                  <TableHead className="font-semibold">Access Type</TableHead>
+                  <TableHead className="font-semibold">ID</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPermissions.map((permission) => (
-                    <TableRow key={permission.id} className="table-row-3d">
-                      <TableCell>
-                        <Badge variant={getMethodBadgeVariant(permission.method)} >
-                          {permission.method}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
-                          {permission.path}
-                        </code>
-                      </TableCell>
-                      <TableCell className="max-w-md">
-                        <span className="text-sm">
-                          {permission.description || (
-                            <span className="text-muted-foreground italic">No description</span>
+                  {filteredPermissions.map((permission) => {
+                    const isCrossClient = isCrossClientPermission(permission)
+                    return (
+                      <TableRow key={permission.id} className="table-row-3d">
+                        <TableCell>
+                          <Badge variant={getMethodBadgeVariant(permission.method)} >
+                            {permission.method}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
+                            {permission.path}
+                          </code>
+                        </TableCell>
+                        <TableCell className="max-w-md">
+                          <span className="text-sm">
+                            {permission.description || (
+                              <span className="text-muted-foreground italic">No description</span>
+                            )}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {isCrossClient ? (
+                            <Badge variant="default" className="bg-primary/10 text-primary border-primary/20">
+                              Cross-Client
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">
+                              Standard
+                            </Badge>
                           )}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs text-muted-foreground font-mono">
-                          {permission.id.substring(0, 8)}...
-                        </code>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs text-muted-foreground font-mono">
+                            {permission.id.substring(0, 8)}...
+                          </code>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
