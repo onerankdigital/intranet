@@ -99,8 +99,12 @@ export default function AuthPage() {
     email: "",
     status: "",
     newPassword: "",
+    role_id: "",
+    client_id: "",
+    assignClient: false,
   })
   const [viewingUser, setViewingUser] = useState<any>(null)
+  const [userClientAssignments, setUserClientAssignments] = useState<any[]>([])
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -159,14 +163,45 @@ export default function AuthPage() {
     setViewingUser(userObj)
   }
 
-  const handleEditUser = (userObj: any) => {
+  const handleEditUser = async (userObj: any) => {
     setEditingUser(userObj)
     setEditUserData({
       name: userObj.name || "",
       email: userObj.email || "",
       status: userObj.status || "active",
       newPassword: "",
+      role_id: "",
+      client_id: "",
+      assignClient: false,
     })
+    
+    // Fetch user's current client/role assignments
+    try {
+      const assignmentsResponse = await userClientApi.list({ user_id: userObj.id })
+      if (assignmentsResponse.data && Array.isArray(assignmentsResponse.data) && assignmentsResponse.data.length > 0) {
+        const assignments = assignmentsResponse.data
+        setUserClientAssignments(assignments)
+        // Pre-fill with first assignment (or role-only assignment if exists)
+        const roleOnlyAssignment = assignments.find((a: any) => a.client_id === null && a.role_id)
+        const firstAssignment = roleOnlyAssignment || assignments[0]
+        if (firstAssignment) {
+          setEditUserData(prev => ({
+            ...prev,
+            role_id: firstAssignment.role_id || "",
+            client_id: firstAssignment.client_id || "",
+            assignClient: !!firstAssignment.client_id,
+          }))
+        }
+      } else {
+        setUserClientAssignments([])
+      }
+    } catch (error) {
+      setUserClientAssignments([])
+    }
+    
+    // Ensure roles and clients are loaded
+    if (roles.length === 0) fetchRoles()
+    if (clients.length === 0) fetchClients()
   }
 
   const handleUpdateUser = async (e: React.FormEvent) => {
@@ -203,9 +238,46 @@ export default function AuthPage() {
         }
       }
 
+      // Update role/client assignment if changed
+      if (editUserData.role_id || editUserData.assignClient) {
+        // Check if there's an existing assignment to update
+        const existingAssignment = userClientAssignments.find(
+          (a: any) => 
+            (editUserData.client_id && a.client_id === editUserData.client_id) ||
+            (!editUserData.client_id && !a.client_id && editUserData.role_id && a.role_id === editUserData.role_id)
+        )
+
+        if (existingAssignment) {
+          // Update existing assignment
+          const updateData: any = {}
+          if (editUserData.role_id) updateData.role_id = editUserData.role_id
+          
+          const updateResponse = await userClientApi.update(existingAssignment.id, updateData)
+          if (updateResponse.error) {
+            setMessage({ type: "error", text: `User updated but role assignment update failed: ${updateResponse.error}` })
+            setLoading(false)
+            return
+          }
+        } else if (editUserData.role_id || (editUserData.assignClient && editUserData.client_id)) {
+          // Create new assignment
+          const createResponse = await userClientApi.create({
+            user_id: editingUser.id,
+            client_id: editUserData.client_id || undefined,
+            role_id: editUserData.role_id || undefined,
+            status: "active",
+          })
+          if (createResponse.error) {
+            setMessage({ type: "error", text: `User updated but role/client assignment failed: ${createResponse.error}` })
+            setLoading(false)
+            return
+          }
+        }
+      }
+
       setMessage({ type: "success", text: "User updated successfully!" })
       setEditingUser(null)
-      setEditUserData({ name: "", email: "", status: "", newPassword: "" })
+      setEditUserData({ name: "", email: "", status: "", newPassword: "", role_id: "", client_id: "", assignClient: false })
+      setUserClientAssignments([])
       fetchAllUsers()
     } catch (error: any) {
       setMessage({ type: "error", text: error.error || "Failed to update user" })
@@ -252,22 +324,28 @@ export default function AuthPage() {
     const data = userResponse.data as UserCreateResponse | undefined
     const userId = data?.id
 
-    // If client and role are selected, assign user to client
-    if (createUserData.assignClient && createUserData.client_id && createUserData.role_id && userId) {
+    // Assign role and/or client if provided
+    if (createUserData.role_id || (createUserData.assignClient && createUserData.client_id)) {
       const assignResponse = await userClientApi.create({
         user_id: userId,
-        client_id: createUserData.client_id,
-        role_id: createUserData.role_id,
+        client_id: createUserData.client_id || undefined,
+        role_id: createUserData.role_id || undefined,
         status: "active",
       })
 
       if (assignResponse.error) {
         setMessage({ 
           type: "error", 
-          text: `User created but failed to assign to client: ${assignResponse.error}` 
+          text: `User created but failed to assign role/client: ${assignResponse.error}` 
         })
       } else {
-        setMessage({ type: "success", text: "User created and assigned to client successfully!" })
+        if (createUserData.role_id && createUserData.client_id) {
+          setMessage({ type: "success", text: "User created and assigned to client with role successfully!" })
+        } else if (createUserData.role_id) {
+          setMessage({ type: "success", text: "User created with role assigned successfully!" })
+        } else {
+          setMessage({ type: "success", text: "User created and assigned to client successfully!" })
+        }
       }
     } else {
       setMessage({ type: "success", text: "User created successfully!" })
@@ -459,57 +537,76 @@ export default function AuthPage() {
                 </Label>
               </div>
               
-              <div className="flex items-center space-x-2 pt-2 border-t">
-                <input
-                  type="checkbox"
-                  id="assign-client"
-                  checked={createUserData.assignClient}
-                  onChange={(e) => setCreateUserData({ ...createUserData, assignClient: e.target.checked })}
-                  className="rounded"
-                />
-                <Label htmlFor="assign-client" className="cursor-pointer">
-                  Assign to Client (Optional)
-                </Label>
-              </div>
+              <div className="pt-2 border-t space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="role-select">Role (Optional)</Label>
+                  <select
+                    id="role-select"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={createUserData.role_id}
+                    onChange={(e) => {
+                      setCreateUserData({ 
+                        ...createUserData, 
+                        role_id: e.target.value
+                      })
+                    }}
+                  >
+                    <option value="">-- Select a role (optional) --</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name} (Level {role.level})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Select a role to assign permissions. Role can be assigned independently or with a client.
+                  </p>
+                </div>
 
-              {createUserData.assignClient && (
-                <>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="assign-client"
+                    checked={createUserData.assignClient}
+                    onChange={(e) => {
+                      setCreateUserData({ 
+                        ...createUserData, 
+                        assignClient: e.target.checked,
+                        // Clear client_id when unchecking
+                        client_id: e.target.checked ? createUserData.client_id : ""
+                      })
+                    }}
+                    className="rounded"
+                  />
+                  <Label htmlFor="assign-client" className="cursor-pointer">
+                    Assign to Client (Optional)
+                  </Label>
+                </div>
+
+                {createUserData.assignClient && (
                   <div className="space-y-2">
-                    <Label htmlFor="client-select">Client</Label>
+                    <Label htmlFor="client-select">Client (Optional)</Label>
                     <select
                       id="client-select"
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={createUserData.client_id}
                       onChange={(e) => setCreateUserData({ ...createUserData, client_id: e.target.value })}
-                      required={createUserData.assignClient}
                     >
-                      <option value="">-- Select a client --</option>
+                      <option value="">-- Select a client (optional) --</option>
                       {clients.map((client) => (
                         <option key={client.client_id || client.id} value={client.client_id || client.id}>
                           {client.name} ({client.client_id || client.id})
                         </option>
                       ))}
                     </select>
+                    <p className="text-xs text-muted-foreground">
+                      {createUserData.role_id 
+                        ? "Client and role will be assigned together when creating the user."
+                        : "Select a client to assign the user. You can also assign a role above."}
+                    </p>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="role-select">Role</Label>
-                    <select
-                      id="role-select"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={createUserData.role_id}
-                      onChange={(e) => setCreateUserData({ ...createUserData, role_id: e.target.value })}
-                      required={createUserData.assignClient}
-                    >
-                      <option value="">-- Select a role --</option>
-                      {roles.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.name} (Level {role.level})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
+                )}
+              </div>
 
               <Button type="submit" disabled={loading}>
                 {loading ? "Creating..." : "Create User"}
@@ -785,6 +882,71 @@ export default function AuthPage() {
                   <p className="text-xs text-muted-foreground">
                     Only fill this field if you want to change the user's password
                   </p>
+                </div>
+
+                <div className="pt-4 border-t space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-role">Role (Optional)</Label>
+                    <select
+                      id="edit-role"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={editUserData.role_id}
+                      onChange={(e) => {
+                        setEditUserData({ 
+                          ...editUserData, 
+                          role_id: e.target.value
+                        })
+                      }}
+                    >
+                      <option value="">-- Select a role (optional) --</option>
+                      {roles.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.name} (Level {role.level})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground">
+                      Assign or change the user's role. Role can be assigned independently or with a client.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="edit-assign-client"
+                      checked={editUserData.assignClient}
+                      onChange={(e) => {
+                        setEditUserData({ 
+                          ...editUserData, 
+                          assignClient: e.target.checked,
+                          client_id: e.target.checked ? editUserData.client_id : ""
+                        })
+                      }}
+                      className="rounded"
+                    />
+                    <Label htmlFor="edit-assign-client" className="cursor-pointer">
+                      Assign to Client (Optional)
+                    </Label>
+                  </div>
+
+                  {editUserData.assignClient && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-client">Client (Optional)</Label>
+                      <select
+                        id="edit-client"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={editUserData.client_id}
+                        onChange={(e) => setEditUserData({ ...editUserData, client_id: e.target.value })}
+                      >
+                        <option value="">-- Select a client (optional) --</option>
+                        {clients.map((client) => (
+                          <option key={client.client_id || client.id} value={client.client_id || client.id}>
+                            {client.name} ({client.client_id || client.id})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
               <DialogFooter className="mt-6">

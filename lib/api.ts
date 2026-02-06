@@ -419,7 +419,7 @@ export const rolePermissionApi = {
 
 // User-Client API
 export const userClientApi = {
-  create: (data: { user_id: string; client_id: string; role_id: string; reports_to_user_client_id?: string; status?: string }) =>
+  create: (data: { user_id: string; client_id?: string; role_id?: string; reports_to_user_client_id?: string; status?: string }) =>
     apiClient.post("/api/user-clients", data),
   
   list: (params?: { user_id?: string; client_id?: string }) => {
