@@ -274,6 +274,7 @@ export default function AuthPage() {
     }
 
     setCreateUserData({ 
+      name: "",
       email: "", 
       password: "", 
       is_admin: false,
