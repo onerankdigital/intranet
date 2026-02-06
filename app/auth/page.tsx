@@ -324,6 +324,12 @@ export default function AuthPage() {
     const data = userResponse.data as UserCreateResponse | undefined
     const userId = data?.id
 
+    if (!userId) {
+      setMessage({ type: "error", text: "User created but user ID not returned" })
+      setLoading(false)
+      return
+    }
+
     // Assign role and/or client if provided
     if (createUserData.role_id || (createUserData.assignClient && createUserData.client_id)) {
       const assignResponse = await userClientApi.create({
