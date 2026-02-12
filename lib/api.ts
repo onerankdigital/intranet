@@ -314,7 +314,7 @@ export const authApi = {
 
   deleteUser: (userId: string) => apiClient.delete(`/api/auth/users/${userId}`),
 
-  updateUser: (userId: string, data: { name: string; email: string; status: string }) =>
+  updateUser: (userId: string, data: { name: string; email: string; status: string; is_admin?: boolean }) =>
     apiClient.put(`/api/auth/users/${userId}`, data),
 
   changeUserPassword: (userId: string, data: { new_password: string }) =>

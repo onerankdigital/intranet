@@ -8,13 +8,51 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader } from "@/components/ui/loader"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { userClientApi, clientApi, roleApi, authApi } from "@/lib/api"
+import { Eye, Users } from "lucide-react"
+
+// Type definitions
+type UserClient = {
+  id?: string
+  user_id: string
+  client_id?: string | null
+  role_id?: string
+  status?: string
+  email?: string
+  client_name?: string
+  role_name?: string
+}
+
+type User = {
+  id: string
+  email: string
+  is_admin?: boolean | string
+}
+
+type Client = {
+  id?: string
+  client_id?: string
+  name?: string
+}
+
+type Role = {
+  id: string
+  name?: string
+  level?: number
+}
+
+type UserGroup = {
+  user_id: string
+  email: string
+  assignments: UserClient[]
+}
 
 export default function UserClientsPage() {
-  const [userClients, setUserClients] = useState<any[]>([])
-  const [users, setUsers] = useState<any[]>([])
-  const [clients, setClients] = useState<any[]>([])
-  const [roles, setRoles] = useState<any[]>([])
+  const [userClients, setUserClients] = useState<UserClient[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -26,7 +64,11 @@ export default function UserClientsPage() {
   const [clientSearchQuery, setClientSearchQuery] = useState("")
   
   // Current user-client assignments to check which are already assigned
-  const [currentAssignments, setCurrentAssignments] = useState<Map<string, any>>(new Map())
+  const [currentAssignments, setCurrentAssignments] = useState<Map<string, UserClient>>(new Map())
+  
+  // State for viewing user's clients dialog
+  const [selectedUserForView, setSelectedUserForView] = useState<string | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchUserClients()
@@ -70,14 +112,16 @@ export default function UserClientsPage() {
   // When user is selected, load their current assignments
   useEffect(() => {
     if (selectedUserId) {
-      const userAssignments = userClients.filter(uc => uc.user_id === selectedUserId)
-      const assignmentMap = new Map()
-      userAssignments.forEach(uc => {
-        assignmentMap.set(uc.client_id, uc)
+      const userAssignments = userClients.filter((uc: UserClient) => uc.user_id === selectedUserId)
+      const assignmentMap = new Map<string, UserClient>()
+      userAssignments.forEach((uc: UserClient) => {
+        if (uc.client_id) {
+          assignmentMap.set(uc.client_id, uc)
+        }
       })
       setCurrentAssignments(assignmentMap)
       // Pre-select already assigned clients
-      setSelectedClientIds(new Set(userAssignments.map(uc => uc.client_id)))
+      setSelectedClientIds(new Set(userAssignments.map((uc: UserClient) => uc.client_id).filter((id): id is string => !!id)))
     } else {
       setCurrentAssignments(new Map())
       setSelectedClientIds(new Set())
@@ -85,7 +129,7 @@ export default function UserClientsPage() {
   }, [selectedUserId, userClients])
 
   // Filter clients based on search query
-  const filteredClients = clients.filter(client => {
+  const filteredClients = clients.filter((client: Client) => {
     const searchLower = clientSearchQuery.toLowerCase()
     const name = (client.name || "").toLowerCase()
     const clientId = (client.client_id || client.id || "").toLowerCase()
@@ -106,8 +150,43 @@ export default function UserClientsPage() {
     if (selectedClientIds.size === filteredClients.length) {
       setSelectedClientIds(new Set())
     } else {
-      setSelectedClientIds(new Set(filteredClients.map(c => c.client_id || c.id)))
+      setSelectedClientIds(new Set(
+        filteredClients
+          .map((c: Client) => c.client_id || c.id)
+          .filter((id): id is string => !!id)
+      ))
     }
+  }
+
+  // Group user-clients by user_id
+  const groupedByUser = userClients.reduce((acc: Record<string, UserGroup>, uc: UserClient) => {
+    const userId = uc.user_id
+    if (!acc[userId]) {
+      acc[userId] = {
+        user_id: userId,
+        email: uc.email || uc.user_id,
+        assignments: []
+      }
+    }
+    // Only add unique client assignments
+    const existingAssignment = acc[userId].assignments.find(
+      (a: UserClient) => a.client_id === uc.client_id
+    )
+    if (!existingAssignment) {
+      acc[userId].assignments.push(uc)
+    }
+    return acc
+  }, {} as Record<string, UserGroup>)
+
+  // Get clients for a specific user
+  const getUserClients = (userId: string): UserClient[] => {
+    return groupedByUser[userId]?.assignments || []
+  }
+
+  // Handle view details button click
+  const handleViewDetails = (userId: string) => {
+    setSelectedUserForView(userId)
+    setViewDialogOpen(true)
   }
 
   const handleBulkAssign = async () => {
@@ -138,7 +217,7 @@ export default function UserClientsPage() {
       let errorCount = 0
 
       for (const clientId of assignments) {
-        // Check if already assigned
+        // Check if already assigned (skip to prevent duplicates)
         if (currentAssignments.has(clientId)) {
           continue // Skip already assigned clients
         }
@@ -150,13 +229,29 @@ export default function UserClientsPage() {
           status: "active",
         }
 
-        const response = await userClientApi.create(data)
-        
-        if (response.error) {
+        try {
+          const response = await userClientApi.create(data)
+          
+          if (response.error) {
+            // Check if error is due to duplicate assignment
+            if (response.error.includes("already assigned") || response.error.includes("already exists")) {
+              // Skip duplicate - don't count as error
+              continue
+            }
+            errorCount++
+            console.error(`Failed to assign client ${clientId}:`, response.error)
+          } else {
+            successCount++
+          }
+        } catch (error: any) {
+          // Handle duplicate assignment errors gracefully
+          if (error?.error?.includes("already assigned") || error?.error?.includes("already exists") || 
+              error?.message?.includes("already assigned") || error?.message?.includes("already exists")) {
+            // Skip duplicate - don't count as error
+            continue
+          }
           errorCount++
-          console.error(`Failed to assign client ${clientId}:`, response.error)
-        } else {
-          successCount++
+          console.error(`Failed to assign client ${clientId}:`, error)
         }
       }
 
@@ -227,7 +322,7 @@ export default function UserClientsPage() {
                     <SelectValue placeholder="-- Select a user --" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((user) => (
+                    {users.map((user: User) => (
                       <SelectItem key={user.id} value={user.id}>
                         {user.email} {user.is_admin ? "(Admin)" : ""}
                       </SelectItem>
@@ -268,8 +363,8 @@ export default function UserClientsPage() {
                     {filteredClients.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No clients found</p>
                     ) : (
-                      filteredClients.map((client) => {
-                        const clientId = client.client_id || client.id
+                      filteredClients.map((client: Client) => {
+                        const clientId = (client.client_id || client.id || "") as string
                         const isAlreadyAssigned = currentAssignments.has(clientId)
                         const isSelected = selectedClientIds.has(clientId)
                         
@@ -339,25 +434,135 @@ export default function UserClientsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User Email</TableHead>
-                  <TableHead>Client</TableHead>
+                  <TableHead>Clients</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>ID</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {userClients.map((uc) => (
-                  <TableRow key={uc.id || `${uc.user_id}-${uc.client_id}`}>
-                    <TableCell>{uc.email || uc.user_id}</TableCell>
-                    <TableCell>{uc.client_name || uc.client_id}</TableCell>
-                    <TableCell>{uc.role_name || uc.role_id}</TableCell>
-                    <TableCell>{uc.status}</TableCell>
-                    <TableCell className="font-mono text-xs">{uc.id || 'N/A'}</TableCell>
-                  </TableRow>
-                ))}
+                {(Object.values(groupedByUser) as UserGroup[]).map((userGroup) => {
+                  const hasMultipleClients = userGroup.assignments.length > 1
+                  const firstAssignment = userGroup.assignments[0]
+                  
+                  return (
+                    <TableRow key={userGroup.user_id}>
+                      <TableCell className="font-medium">{userGroup.email}</TableCell>
+                      <TableCell>
+                        {hasMultipleClients ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">
+                              {userGroup.assignments.length} client(s)
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewDetails(userGroup.user_id)}
+                              className="gap-1"
+                            >
+                              <Eye className="h-3 w-3" />
+                              View Details
+                            </Button>
+                          </div>
+                        ) : (
+                          <span>{firstAssignment?.client_name || firstAssignment?.client_id || 'N/A'}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {hasMultipleClients ? (
+                          <span className="text-muted-foreground text-sm">Multiple roles</span>
+                        ) : (
+                          <span>{firstAssignment?.role_name || firstAssignment?.role_id}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {hasMultipleClients ? (
+                          <span className="text-muted-foreground text-sm">
+                            {userGroup.assignments.every(a => a.status === 'active') 
+                              ? 'All Active' 
+                              : 'Mixed'}
+                          </span>
+                        ) : (
+                          <span>{firstAssignment?.status}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {hasMultipleClients && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewDetails(userGroup.user_id)}
+                            className="gap-1"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}
+          
+          {/* Dialog to show all clients for a user */}
+          <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Client Assignments for {selectedUserForView && groupedByUser[selectedUserForView]?.email}
+                  </DialogTitle>
+                  <DialogDescription>
+                    All clients assigned to this user
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="mt-4">
+                  {selectedUserForView && getUserClients(selectedUserForView).length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Client Name</TableHead>
+                          <TableHead>Client ID</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Assignment ID</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getUserClients(selectedUserForView).map((assignment: UserClient) => (
+                          <TableRow key={assignment.id || `${assignment.user_id}-${assignment.client_id}`}>
+                            <TableCell className="font-medium">
+                              {assignment.client_name || 'N/A'}
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">
+                              {assignment.client_id || 'N/A'}
+                            </TableCell>
+                            <TableCell>{assignment.role_name || assignment.role_id}</TableCell>
+                            <TableCell>
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                assignment.status === 'active' 
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                              }`}>
+                                {assignment.status}
+                              </span>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{assignment.id || 'N/A'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">
+                      No clients assigned to this user
+                    </p>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          
           <div className="mt-4">
             <Button onClick={fetchUserClients} variant="outline" disabled={loading}>
               Refresh List

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Combobox } from "@/components/ui/combobox"
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { clientApi } from "@/lib/api"
 import { Building2, ArrowLeft, CheckCircle2, XCircle, RefreshCw, Save, Globe, Mail, Phone, MapPin, Calendar } from "lucide-react"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
@@ -19,6 +20,8 @@ export default function NewClientPage() {
   const [loading, setLoading] = useState(false)
   const [generatingClientId, setGeneratingClientId] = useState(true)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
+  const [createdClientId, setCreatedClientId] = useState<string>("")
 
   const [formData, setFormData] = useState({
     // Basic Info (Customer No = Client ID)
@@ -260,16 +263,16 @@ export default function NewClientPage() {
       }
       // Update client with is_premium if needed
       const data = response.data as OrderResponse | undefined
-      const createdClientId = data?.client_id || client_id
+      const newClientId = data?.client_id || client_id
+      setCreatedClientId(newClientId)
+      
       if (formData.is_premium) {
-        await clientApi.update(createdClientId, { is_premium: true })
+        await clientApi.update(newClientId, { is_premium: true })
       }
       
-      setMessage({ type: "success", text: "Client created successfully!" })
-      // Redirect to client detail page after 1 second
-      setTimeout(() => {
-        router.push(`/clients/${createdClientId}`)
-      }, 1000)
+      // Show success popup
+      setShowSuccessDialog(true)
+      setMessage({ type: "success", text: "Client data added successfully!" })
     }
     setLoading(false)
   }
@@ -336,6 +339,38 @@ export default function NewClientPage() {
           </div>
         </div>
       </div>
+
+      {/* Success Dialog */}
+      <AlertDialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/20">
+                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <AlertDialogTitle>Client Data Added Successfully!</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="pt-2">
+              The client has been created successfully with Client ID: <strong>{createdClientId}</strong>
+              <br />
+              <br />
+              You will be redirected to the client details page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                setShowSuccessDialog(false)
+                router.push(`/clients/${createdClientId}`)
+              }}
+              className="gap-2"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              View Client Details
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Alert Message */}
       {message && (

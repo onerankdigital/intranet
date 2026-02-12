@@ -54,14 +54,32 @@ export function Sidebar({ className }: SidebarProps) {
   const { logout, user } = useAuth()
   const { canRead, hasPermission, loading: permissionsLoading } = usePermissions()
 
+  // Lock body scroll when mobile sidebar is open
+  React.useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isMobileOpen])
+
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className="lg:hidden fixed top-4 left-4 z-[60]">
         <Button
           variant="outline"
           size="icon"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className="touch-manipulation"
+          onTouchStart={(e) => {
+            // Ensure touch events work properly
+            e.stopPropagation()
+          }}
         >
           {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
@@ -70,16 +88,22 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40"
+          className="lg:hidden fixed inset-0 bg-black/50 z-[55]"
           onClick={() => setIsMobileOpen(false)}
+          onTouchStart={(e) => {
+            // Close on touch outside
+            if (e.target === e.currentTarget) {
+              setIsMobileOpen(false)
+            }
+          }}
         />
       )}
 
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-0 left-0 z-40 h-screen w-64 bg-card border-r border-border transition-transform duration-300 ease-in-out",
-          "lg:translate-x-0",
+          "fixed top-0 left-0 z-[60] h-screen w-64 bg-card border-r border-border transition-transform duration-300 ease-in-out",
+          "lg:translate-x-0 lg:z-40",
           isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           className
         )}

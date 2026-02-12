@@ -98,6 +98,7 @@ export default function AuthPage() {
     name: "",
     email: "",
     status: "",
+    is_admin: false,
     newPassword: "",
     role_id: "",
     client_id: "",
@@ -165,10 +166,12 @@ export default function AuthPage() {
 
   const handleEditUser = async (userObj: any) => {
     setEditingUser(userObj)
+    const isAdminUser = userObj.is_admin === true || userObj.is_admin === "true" || userObj.is_admin === "True"
     setEditUserData({
       name: userObj.name || "",
       email: userObj.email || "",
       status: userObj.status || "active",
+      is_admin: isAdminUser,
       newPassword: "",
       role_id: "",
       client_id: "",
@@ -217,6 +220,7 @@ export default function AuthPage() {
         name: editUserData.name,
         email: editUserData.email,
         status: editUserData.status,
+        is_admin: editUserData.is_admin,
       })
 
       if (updateResponse.error) {
@@ -276,7 +280,7 @@ export default function AuthPage() {
 
       setMessage({ type: "success", text: "User updated successfully!" })
       setEditingUser(null)
-      setEditUserData({ name: "", email: "", status: "", newPassword: "", role_id: "", client_id: "", assignClient: false })
+      setEditUserData({ name: "", email: "", status: "", is_admin: false, newPassword: "", role_id: "", client_id: "", assignClient: false })
       setUserClientAssignments([])
       fetchAllUsers()
     } catch (error: any) {
@@ -875,6 +879,18 @@ export default function AuthPage() {
                       <SelectItem value="inactive">Inactive</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="edit-is-admin"
+                    checked={editUserData.is_admin}
+                    onChange={(e) => setEditUserData({ ...editUserData, is_admin: e.target.checked })}
+                    className="rounded"
+                  />
+                  <Label htmlFor="edit-is-admin" className="cursor-pointer">
+                    Admin User
+                  </Label>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-password">New Password (Optional)</Label>
