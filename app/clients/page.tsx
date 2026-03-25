@@ -14,13 +14,17 @@ import { Loader } from "@/components/ui/loader"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { clientApi } from "@/lib/api"
 import { usePermissions } from "@/lib/use-permissions"
-import { Users, Plus, RefreshCw, CheckCircle2, XCircle, Search, Eye, X, Building2, Edit, Trash2, Printer } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { Users, Plus, RefreshCw, CheckCircle2, XCircle, Search, Eye, X, Building2, Edit, Trash2, Printer, Download } from "lucide-react"
 
 export default function ClientsPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const { canCreate, canRead, canUpdate, canDelete } = usePermissions()
+  const isAdmin = user?.is_admin === true || ["true", "1", "yes", "on"].includes(String(user?.is_admin).toLowerCase().trim())
   const [clients, setClients] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [exportingAllData, setExportingAllData] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
@@ -277,6 +281,37 @@ export default function ClientsPage() {
     window.open(orderFormUrl, '_blank')
   }
 
+  const handleDownloadAllClientsData = async () => {
+    setExportingAllData(true)
+    setMessage(null)
+
+    try {
+      const response = await clientApi.exportAllClientsData()
+      if (response.error || !response.data) {
+        setMessage({ type: "error", text: response.error || "Failed to export all client data" })
+        return
+      }
+
+      const jsonString = JSON.stringify(response.data, null, 2)
+      const blob = new Blob([jsonString], { type: "application/json" })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+      link.href = url
+      link.download = `all-clients-full-data-${timestamp}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      setMessage({ type: "success", text: "All clients data exported successfully." })
+    } catch (error: any) {
+      setMessage({ type: "error", text: error?.message || "Failed to export all client data" })
+    } finally {
+      setExportingAllData(false)
+    }
+  }
+
   const filteredClients = clients.filter((client) => {
     if (!searchQuery) return true
     const query = searchQuery.toLowerCase()
@@ -314,6 +349,17 @@ export default function ClientsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              onClick={handleDownloadAllClientsData}
+              disabled={exportingAllData}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              {exportingAllData ? "Exporting..." : "Download All Clients Data"}
+            </Button>
+          )}
           {canCreate("Clients") && (
             <Button 
               type="button"

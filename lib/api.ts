@@ -350,6 +350,8 @@ export const clientApi = {
     apiClient.put(`/api/clients/${clientId}/integrations`, data),
 
   exportAllData: (clientId: string) => apiClient.get(`/api/clients/${clientId}/export-data`),
+  
+  exportAllClientsData: () => apiClient.get(`/api/clients/export-all-data`),
 }
 
 // Lead API
