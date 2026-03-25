@@ -348,6 +348,8 @@ export const clientApi = {
 
   updateIntegration: (clientId: string, data: { whatsapp_enabled?: string; google_sheets_enabled?: string; google_sheet_id?: string; meta_page_id?: string; meta_form_id?: string }) =>
     apiClient.put(`/api/clients/${clientId}/integrations`, data),
+
+  exportAllData: (clientId: string) => apiClient.get(`/api/clients/${clientId}/export-data`),
 }
 
 // Lead API
@@ -398,14 +400,21 @@ export const roleApi = {
 
 // Permissions API
 export const permissionApi = {
-  create: (data: { method: string; path: string; description?: string }) =>
+  create: (data: { method: string; path: string; description?: string; module?: string; action_type?: string; is_cross_client?: boolean }) =>
     apiClient.post("/api/permissions", data),
   
-  list: () => apiClient.get("/api/permissions"),
+  list: (params?: { module?: string; action_type?: string }) => {
+    const query = new URLSearchParams()
+    if (params?.module) query.append("module", params.module)
+    if (params?.action_type) query.append("action_type", params.action_type)
+    return apiClient.get(`/api/permissions${query.toString() ? `?${query.toString()}` : ""}`)
+  },
   
   get: (permissionId: string) => apiClient.get(`/api/permissions/${permissionId}`),
   
   getAvailableEndpoints: () => apiClient.get("/api/endpoints"),
+  
+  getByModule: (module: string) => apiClient.get(`/api/permissions/by-module/${module}`),
 }
 
 // Role-Permission API
@@ -415,6 +424,15 @@ export const rolePermissionApi = {
   
   remove: (data: { role_id: string; permission_id: string }) =>
     apiClient.delete("/api/role-permissions", data),
+  
+  bulkAssign: (data: { role_id: string; permission_ids: string[]; action: "assign" | "remove" | "replace" }) =>
+    apiClient.post("/api/role-permissions/bulk", data),
+  
+  assignByModule: (data: { role_id: string; module: string; actions: string[]; is_cross_client?: boolean }) =>
+    apiClient.post("/api/role-permissions/by-module", data),
+  
+  getSummary: (roleId: string) =>
+    apiClient.get(`/api/roles/${roleId}/permissions/summary`),
 }
 
 // User-Client API

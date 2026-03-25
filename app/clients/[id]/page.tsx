@@ -12,12 +12,15 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { clientApi, transactionApi } from "@/lib/api"
-import { Building2, ArrowLeft, CheckCircle2, XCircle, Receipt, IndianRupee, Calendar, Phone, Mail, MapPin, Globe, FileText, Settings, List, MessageSquare, Table as TableIcon, RefreshCw } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { Building2, ArrowLeft, CheckCircle2, XCircle, Receipt, IndianRupee, Calendar, Phone, Mail, MapPin, Globe, FileText, Settings, List, MessageSquare, Table as TableIcon, RefreshCw, Download } from "lucide-react"
 
 export default function ClientDetailPage() {
   const router = useRouter()
   const params = useParams()
   const clientId = params.id as string
+  const { user } = useAuth()
+  const isAdmin = user?.is_admin === true || String(user?.is_admin).toLowerCase() === "true"
 
   const [client, setClient] = useState<any>(null)
   const [balance, setBalance] = useState<any>(null)
@@ -25,6 +28,7 @@ export default function ClientDetailPage() {
   const [integration, setIntegration] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [savingIntegration, setSavingIntegration] = useState(false)
+  const [exportingData, setExportingData] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
@@ -99,6 +103,37 @@ export default function ClientDetailPage() {
     }
   }
 
+  const handleDownloadAllClientData = async () => {
+    setExportingData(true)
+    setMessage(null)
+
+    try {
+      const response = await clientApi.exportAllData(clientId)
+      if (response.error || !response.data) {
+        setMessage({ type: "error", text: response.error || "Failed to export client data" })
+        return
+      }
+
+      const jsonString = JSON.stringify(response.data, null, 2)
+      const blob = new Blob([jsonString], { type: "application/json" })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+      link.href = url
+      link.download = `client-${clientId}-full-data-${timestamp}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+
+      setMessage({ type: "success", text: "Client data exported successfully." })
+    } catch (error: any) {
+      setMessage({ type: "error", text: error?.message || "Failed to export client data" })
+    } finally {
+      setExportingData(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="container mx-auto py-6 space-y-6">
@@ -136,11 +171,23 @@ export default function ClientDetailPage() {
 
   return (
     <div className="container mx-auto py-6 space-y-6">
-      {/* Back Button */}
-      <Button variant="outline" onClick={() => router.back()} className="gap-2">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Clients
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={() => router.back()} className="gap-2">
+          <ArrowLeft className="h-4 w-4" />
+          Back to Clients
+        </Button>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            onClick={handleDownloadAllClientData}
+            className="gap-2"
+            disabled={exportingData}
+          >
+            <Download className="h-4 w-4" />
+            {exportingData ? "Exporting..." : "Download All Client Data"}
+          </Button>
+        )}
+      </div>
 
       {/* Message Alert */}
       {message && (
