@@ -75,8 +75,9 @@ export default function RolePermissionsPage() {
     try {
       // Get summary for quick overview
       const summaryResponse = await rolePermissionApi.getSummary(selectedRole)
+      const summaryData = summaryResponse.data as any
       
-      if (summaryResponse.data && summaryResponse.data.modules) {
+      if (summaryData && summaryData.modules) {
         const modules: RolePermissionsState = {}
         
         // Initialize all modules
@@ -91,7 +92,7 @@ export default function RolePermissionsPage() {
         })
         
         // Populate from summary
-        Object.entries(summaryResponse.data.modules).forEach(([moduleName, moduleData]: [string, any]) => {
+        Object.entries(summaryData.modules).forEach(([moduleName, moduleData]: [string, any]) => {
           if (modules[moduleName]) {
             modules[moduleName] = {
               read: moduleData.read || false,
